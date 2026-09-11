@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dedicated Camera Scan — Vision-Based Defect Inspection</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">📷</div>
+        <div>
+          <h1 class="brand-title">Dedicated Camera Scan</h1>
+          <p class="brand-subtitle">High-Speed Optical Part Capture & Automatic Quality Analysis</p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Batch Upload</a>
+        <a href="/scan" class="nav-btn active">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn">Analytics</a>
+        <a href="/live" class="nav-btn">Live Stream</a>
+      </nav>
+
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Logged in as <strong>{{ current_user.username }}</strong>
+          <span class="role-pill role-{{ current_user.role }}">{{ current_user.role|upper }}</span>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Camera Permission Error Banner (Fallback link) -->
+    <div id="cameraAlert" class="alert-box error hidden">
+      <span class="alert-icon">⚠️</span>
+      <div class="alert-text">
+        <strong id="cameraErrorTitle">Camera Hardware Inaccessible:</strong>
+        <span id="cameraErrorMessage">Unable to access optical sensor.</span>
+        <a href="/" class="alert-action-link">Upload Manufactured Parts Instead &rarr;</a>
+      </div>
+      <button class="alert-close" onclick="closeCameraAlert()">&times;</button>
+    </div>
+
+    <!-- Scan Workstation Card -->
+    <section class="card scan-card">
+      <div class="scan-header-bar">
+        <div>
+          <h2 class="card-title">Live Sensor Viewport</h2>
+          <p class="card-desc">Position manufactured part in inspection ROI and capture optical snapshot.</p>
+        </div>
+
+        <!-- Camera Switcher Dropdown (Prompt 12) -->
+        <div class="camera-switch-row">
+          <label for="cameraSelect" class="switch-label">Sensor Device:</label>
+          <select id="cameraSelect" class="camera-select" onchange="switchCamera(this.value)">
+            <option value="">Detecting video devices...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Video & Snapshot Stage -->
+      <div class="camera-stage-container">
+        <!-- Live Video Element -->
+        <div id="videoWrapper" class="stage-view-wrapper">
+          <video id="scanVideo" playsinline autoplay muted class="scan-video"></video>
+          
+          <!-- Optical Alignment Reticle / HUD Target Box -->
+          <div class="alignment-reticle">
+            <div class="reticle-corner corner-tl"></div>
+            <div class="reticle-corner corner-tr"></div>
+            <div class="reticle-corner corner-bl"></div>
+            <div class="reticle-corner corner-br"></div>
+            <div class="reticle-label">ALIGN PART CENTER</div>
+          </div>
+        </div>
+
+        <!-- Captured Photo Snapshot Preview (Initially hidden) -->
+        <div id="snapshotWrapper" class="stage-view-wrapper hidden">
+          <img id="capturedSnapshot" alt="Captured part snapshot" class="snapshot-img">
+          <div class="snapshot-badge">SNAPSHOT FROZEN</div>
+        </div>
+
+        <!-- Hidden canvas for raster frame conversion -->
+        <canvas id="captureCanvas" style="display: none;"></canvas>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="scan-controls-bar">
+        <!-- Phase 1: Capture View Controls -->
+        <div id="captureControls" class="control-btn-group">
+          <button id="captureBtn" onclick="captureSnapshot()" class="btn btn-primary btn-large">
+            <span class="btn-icon">📸</span> Capture Snapshot
+          </button>
+        </div>
+
+        <!-- Phase 2: Post-Capture Review Controls (Initially hidden) -->
+        <div id="reviewControls" class="control-btn-group hidden">
+          <button id="retakeBtn" onclick="retakePhoto()" class="btn btn-secondary">
+            <span class="btn-icon">🔄</span> Retake Photo
+          </button>
+          <button id="analyzeScanBtn" onclick="analyzeCapturedPhoto()" class="btn btn-primary btn-large">
+            <span class="btn-icon">⚡</span> Analyze Photo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Loading Spinner Panel -->
+    <div id="scanLoading" class="loading-panel hidden">
+      <div class="spinner"></div>
+      <p class="loading-text">Executing Multi-Stage Vision Analysis (CLAHE &rarr; CAE &rarr; Grad-CAM &rarr; Severity)...</p>
+    </div>
+
+    <!-- Inspection Result Card (Prompt 12) -->
+    <section id="scanResultCard" class="card result-card hidden">
+      <div class="result-header">
+        <div>
+          <span id="scanResultBadge" class="status-badge">PASS</span>
+          <h2 id="scanResultTitle" class="result-title">Inspection Complete</h2>
+        </div>
+        <div class="result-conf-block">
+          <div id="scanResultConfidence" class="conf-value">--%</div>
+          <div class="conf-label">Confidence</div>
+        </div>
+      </div>
+
+      <div class="inspection-grid">
+        <!-- Annotated Image Display with Bounding Boxes & Heatmap -->
+        <div class="image-viewer-container">
+          <img id="scanAnnotatedImg" src="" alt="Annotated inspection overlay" class="annotated-img">
+        </div>
+
+        <!-- Telemetry & Disposition Details -->
+        <div class="metrics-panel">
+          <div class="metric-row">
+            <span class="metric-label">Defect Category:</span>
+            <span id="scanDefectType" class="metric-value capitalize">--</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Severity Score:</span>
+            <span id="scanSeverityScore" class="metric-value">-- / 100</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Severity Tier:</span>
+            <span id="scanSeverityCat" class="metric-value">--</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Recommended Action:</span>
+            <span id="scanRecommendedAction" class="metric-value text-cyan">--</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Measured Defect Area:</span>
+            <span id="scanDefectArea" class="metric-value font-mono">-- mm²</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Inference Latency:</span>
+            <span id="scanInferenceLatency" class="metric-value font-mono text-emerald">-- ms</span>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-slate-800">
+            <button onclick="resetAndScanAnother()" class="btn btn-primary w-full">
+              <span class="btn-icon">📷</span> Scan Another Part
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Camera Scan Script (Prompt 12) -->
+  <script>
+    let activeStream = null;
+    let currentDeviceId = null;
+    let capturedBlob = null;
+
+    const video = document.getElementById('scanVideo');
+    const canvas = document.getElementById('captureCanvas');
+    const snapshotImg = document.getElementById('capturedSnapshot');
+    const cameraSelect = document.getElementById('cameraSelect');
+
+    // 1. Initialize Camera on Page Load
+    async function initCamera(preferredDeviceId = null) {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: preferredDeviceId
+          ? { deviceId: { exact: preferredDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      };
+
+      try {
+        activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = activeStream;
+        await video.play();
+
+        document.getElementById('cameraAlert').classList.add('hidden');
+        await populateCameraDevices();
+      } catch (err) {
+        console.error('Camera access failure:', err);
+        showCameraError(err.name, err.message);
+      }
+    }
+
+    // 2. Enumerate Video Input Devices (Prompt 12)
+    async function populateCameraDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === 'videoinput');
+
+        cameraSelect.innerHTML = '';
+        if (videoInputs.length === 0) {
+          cameraSelect.innerHTML = '<option value="">Default Camera</option>';
+          return;
+        }
+
+        videoInputs.forEach((device, index) => {
+          const opt = document.createElement('option');
+          opt.value = device.deviceId;
+          opt.text = device.label || `Camera ${index + 1} (${device.deviceId.slice(0, 5)}...)`;
+          if (activeStream) {
+            const currentTrack = activeStream.getVideoTracks()[0];
+            if (currentTrack && currentTrack.getSettings().deviceId === device.deviceId) {
+              opt.selected = true;
+            }
+          }
+          cameraSelect.appendChild(opt);
+        });
+      } catch (e) {
+        console.warn('enumerateDevices error:', e);
+      }
+    }
+
+    function switchCamera(deviceId) {
+      if (!deviceId) return;
+      currentDeviceId = deviceId;
+      initCamera(deviceId);
+    }
+
+    function showCameraError(name, msg) {
+      document.getElementById('cameraErrorTitle').textContent = `Camera Access Issue (${name}):`;
+      document.getElementById('cameraErrorMessage').textContent =
+        'Please permit camera access in your browser settings, or use direct file upload.';
+      document.getElementById('cameraAlert').classList.remove('hidden');
+    }
+
+    function closeCameraAlert() {
+      document.getElementById('cameraAlert').classList.add('hidden');
+    }
+
+    // 3. Snapshot Capture
+    function captureSnapshot() {
+      if (!video.videoWidth || !video.videoHeight) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        capturedBlob = blob;
+        snapshotImg.src = URL.createObjectURL(blob);
+
+        // Switch UI to review state
+        document.getElementById('videoWrapper').classList.add('hidden');
+        document.getElementById('snapshotWrapper').classList.remove('hidden');
+        document.getElementById('captureControls').classList.add('hidden');
+        document.getElementById('reviewControls').classList.remove('hidden');
+      }, 'image/jpeg', 0.95);
+    }
+
+    // 4. Retake Photo
+    function retakePhoto() {
+      capturedBlob = null;
+      document.getElementById('snapshotWrapper').classList.add('hidden');
+      document.getElementById('videoWrapper').classList.remove('hidden');
+      document.getElementById('reviewControls').classList.add('hidden');
+      document.getElementById('captureControls').classList.remove('hidden');
+      document.getElementById('scanResultCard').classList.add('hidden');
+    }
+
+    // 5. Analyze Captured Photo (POST /analyze)
+    async function analyzeCapturedPhoto() {
+      if (!capturedBlob) return;
+
+      document.getElementById('scanLoading').classList.remove('hidden');
+      document.getElementById('scanResultCard').classList.add('hidden');
+
+      const formData = new FormData();
+      formData.append('image', capturedBlob, `camera_scan_${Date.now()}.jpg`);
+
+      try {
+        const response = await fetch('/analyze', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        document.getElementById('scanLoading').classList.add('hidden');
+
+        if (!response.ok) {
+          alert(data.error || 'Inspection analysis failed.');
+          return;
+        }
+
+        displayScanResult(data.results[0]);
+      } catch (err) {
+        document.getElementById('scanLoading').classList.add('hidden');
+        alert('Communication error with inspection server: ' + err.message);
+      }
+    }
+
+    // 6. Display Result Below
+    function displayScanResult(res) {
+      const isPass = res.decision === 'PASS';
+      const badge = document.getElementById('scanResultBadge');
+      badge.textContent = isPass ? 'PASS — CONFORMING' : `DEFECT DETECTED [${res.severity_category.toUpperCase()}]`;
+      badge.className = `status-badge ${isPass ? 'badge-pass' : 'badge-defective'}`;
+
+      document.getElementById('scanResultTitle').textContent = isPass
+        ? 'Manufactured Part Conforms to Specifications'
+        : `Defect Found: ${res.defect_type.replace('_', ' ').toUpperCase()}`;
+
+      document.getElementById('scanResultConfidence').textContent = `${(res.confidence * 100).toFixed(1)}%`;
+      document.getElementById('scanDefectType').textContent = res.defect_type.replace('_', ' ');
+      document.getElementById('scanSeverityScore').textContent = `${res.severity_score} / 100`;
+      
+      const sevCatEl = document.getElementById('scanSeverityCat');
+      sevCatEl.textContent = res.severity_category;
+      sevCatEl.className = `metric-value font-bold ${
+        res.severity_category === 'Critical' ? 'text-rose' :
+        res.severity_category === 'Major' ? 'text-amber' : 'text-emerald'
+      }`;
+
+      document.getElementById('scanRecommendedAction').textContent = res.recommended_action;
+      document.getElementById('scanDefectArea').textContent = `${res.defect_area_mm2} mm² (${res.defect_area} px)`;
+      document.getElementById('scanInferenceLatency').textContent = `${res.inference_time_ms} ms`;
+
+      if (res.annotated_image_base64) {
+        document.getElementById('scanAnnotatedImg').src = res.annotated_image_base64;
+      } else {
+        document.getElementById('scanAnnotatedImg').src = snapshotImg.src;
+      }
+
+      document.getElementById('scanResultCard').classList.remove('hidden');
+      document.getElementById('scanResultCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // 7. Reset and Scan Another
+    function resetAndScanAnother() {
+      retakePhoto();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Startup camera on load
+    document.addEventListener('DOMContentLoaded', () => {
+      initCamera();
+    });
+
+    // Teardown camera when leaving
+    window.addEventListener('beforeunload', () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+    });
+  </script>
+</body>
+</html>

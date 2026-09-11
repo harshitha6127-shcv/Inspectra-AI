@@ -1,0 +1,4 @@
+# Directory for saved model checkpoints:
+# - autoencoder_best.pth
+# - classifier_efficientnet.pth
+# - unet_segmentation.pth

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vision-Based Defect Detection — Inspection Console</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">👁️</div>
+        <div>
+          <h1 class="brand-title">Vision-Based Defect Detection</h1>
+          <p class="brand-subtitle">Manufacturing Quality Inspection Workstation</p>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="/" class="nav-btn active">Batch Upload</a>
+        <a href="/scan" class="nav-btn">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn">Analytics</a>
+        <a href="/live" class="nav-btn">Live Stream</a>
+      </nav>
+
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Logged in as <strong>{{ current_user.username }}</strong>
+          <span class="role-pill role-{{ current_user.role }}">{{ current_user.role|upper }}</span>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+    <!-- Error Alert Box -->
+    <div id="errorBox" class="alert-box error hidden">
+      <span class="alert-icon">⚠️</span>
+      <span id="errorMessage" class="alert-text">Error message here</span>
+      <button class="alert-close" onclick="closeError()">&times;</button>
+    </div>
+
+    <!-- Upload & Controls Section -->
+    <section class="card upload-card">
+      <h2 class="card-title">Upload Manufactured Part Images</h2>
+      <p class="card-desc">Drag and drop or select component images (.jpg, .png, .bmp up to 10MB each).</p>
+
+      <div id="dropZone" class="drop-zone">
+        <div class="drop-icon">📁</div>
+        <p class="drop-text">Drag & drop manufactured parts here, or <span class="browse-link">browse files</span></p>
+        <p class="drop-subtext">Supported formats: JPG, PNG, BMP (Batch upload supported)</p>
+        <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp" style="display: none;">
+      </div>
+
+      <!-- Selected Files Preview Chips -->
+      <div id="fileList" class="file-chips-container hidden"></div>
+
+      <div class="action-row">
+        <button id="analyzeBtn" class="btn btn-primary" disabled>
+          <span class="btn-icon">⚡</span> Analyze Images
+        </button>
+        <button id="clearBtn" class="btn btn-secondary hidden">Clear Selection</button>
+      </div>
+    </section>
+
+    <!-- Loading State -->
+    <div id="loadingIndicator" class="loading-panel hidden">
+      <div class="spinner"></div>
+      <p class="loading-text">Running multi-stage vision pipeline (CLAHE → CAE → Classifier → Grad-CAM → Refinement)...</p>
+    </div>
+
+    <!-- Single / Primary Result Inspector Card -->
+    <section id="resultCard" class="card result-card hidden">
+      <div class="result-header">
+        <div>
+          <span id="resultBadge" class="status-badge">PASS</span>
+          <h2 id="resultTitle" class="result-title">Normal Machined Flange</h2>
+        </div>
+        <div class="result-conf-block">
+          <div id="resultConfidence" class="conf-value">98.4%</div>
+          <div class="conf-label">Confidence</div>
+        </div>
+      </div>
+
+      <div class="inspection-grid">
+        <!-- Annotated Image Viewer -->
+        <div class="image-viewer-container">
+          <img id="annotatedImage" src="" alt="Inspected component overlay" class="annotated-img">
+        </div>
+
+        <!-- Metric Details Panel -->
+        <div class="metrics-panel">
+          <div class="metric-row">
+            <span class="metric-label">Defect Category:</span>
+            <span id="mDefectType" class="metric-value capitalize">Normal</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Severity Score:</span>
+            <span id="mSeverityScore" class="metric-value">0 / 100</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Severity Category:</span>
+            <span id="mSeverityCat" class="metric-value">None</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Recommended Action:</span>
+            <span id="mAction" class="metric-value action-highlight">Pass to downstream line</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Anomaly Reconstruction Score:</span>
+            <span id="mAnomalyScore" class="metric-value font-mono">0.0124</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Measured Defect Area:</span>
+            <span id="mDefectArea" class="metric-value font-mono">0 px² (0.00 mm²)</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Inference Latency:</span>
+            <span id="mInferenceTime" class="metric-value font-mono text-cyan">18.4 ms</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Batch Results Table Section -->
+    <section id="batchSection" class="card batch-card hidden">
+      <div class="batch-header">
+        <div>
+          <h2 class="card-title">Batch Inspection Results</h2>
+          <p id="batchSubtitle" class="card-desc">Showing results for inspected batch</p>
+        </div>
+        <a id="downloadReportBtn" href="#" class="btn btn-outline">
+          📥 Download CSV Report
+        </a>
+      </div>
+
+      <div class="table-responsive">
+        <table class="batch-table">
+          <thead>
+            <tr>
+              <th>Preview</th>
+              <th>Filename</th>
+              <th>Status</th>
+              <th>Defect Type</th>
+              <th>Severity</th>
+              <th>Confidence</th>
+              <th>Area (mm²)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="batchTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/main.js"></script>
+</body>
+</html>

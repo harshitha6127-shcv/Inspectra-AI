@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard — Vision-Based Defect Inspection</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <!-- Chart.js via CDN (Prompt 11) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">📊</div>
+        <div>
+          <h1 class="brand-title">Defect Analytics Dashboard</h1>
+          <p class="brand-subtitle">Database-Backed Quality Telemetry & Yield Metrics</p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Batch Upload</a>
+        <a href="/scan" class="nav-btn">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn active">Analytics</a>
+        <a href="/live" class="nav-btn">Live Stream</a>
+      </nav>
+
+      <!-- User Auth Badge (Prompt 13) -->
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Logged in as <strong>{{ current_user.username }}</strong>
+          <span class="role-pill role-{{ current_user.role }}">{{ current_user.role|upper }}</span>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Top KPI Cards -->
+    <section class="kpi-grid">
+      <div class="card kpi-card">
+        <div class="kpi-label">Total Inspections</div>
+        <div id="kpiTotal" class="kpi-value">--</div>
+        <div class="kpi-subtext">All-time component evaluations</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-label">Defective Parts</div>
+        <div id="kpiDefects" class="kpi-value text-rose">--</div>
+        <div class="kpi-subtext">Total defect occurrences identified</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-label">Rejection Rate</div>
+        <div id="kpiRate" class="kpi-value text-amber">--%</div>
+        <div class="kpi-subtext">Defective items / total inspected</div>
+      </div>
+
+      <div class="card kpi-card">
+        <div class="kpi-label">Avg Defect Severity</div>
+        <div id="kpiAvgSeverity" class="kpi-value text-cyan">-- / 100</div>
+        <div class="kpi-subtext">Composite multi-factor impact score</div>
+      </div>
+    </section>
+
+    <!-- Controls Bar: Time Filter & History Actions -->
+    <section class="dashboard-controls-card card">
+      <div class="time-filter-group">
+        <span class="filter-label">Timeline Scope:</span>
+        <button id="btnDays7" class="btn-filter" onclick="setDays(7)">Last 7 Days</button>
+        <button id="btnDays30" class="btn-filter active" onclick="setDays(30)">Last 30 Days</button>
+      </div>
+
+      <div class="actions-group">
+        <a href="/export-csv" class="btn btn-secondary">
+          <span class="btn-icon">📥</span> Export All as CSV
+        </a>
+
+        {% if current_user and current_user.is_admin() %}
+        <button onclick="confirmClearHistory()" class="btn btn-danger">
+          <span class="btn-icon">🗑️</span> Clear History
+        </button>
+        {% else %}
+        <button disabled class="btn btn-secondary btn-disabled" title="Only Admin can clear database history">
+          <span class="btn-icon">🔒</span> Clear History (Admin Only)
+        </button>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- Visual Charts Grid (Chart.js) -->
+    <section class="charts-grid">
+      <!-- 1. Defects Over Time Line Chart -->
+      <div class="card chart-card line-chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Defect Trend Over Time</h3>
+          <span id="chartScopeLabel" class="chart-tag">Last 30 Days</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 2. Defect Type Distribution Bar Chart -->
+      <div class="card chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Defect Category Distribution</h3>
+          <span class="chart-tag">Classification Frequencies</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="distributionChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 3. Severity Breakdown Donut Chart -->
+      <div class="card chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">Severity Breakdown</h3>
+          <span class="chart-tag">Minor · Major · Critical</span>
+        </div>
+        <div class="chart-container">
+          <canvas id="severityChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Recent Inspections Table (Last 20) with Filters -->
+    <section class="card table-card">
+      <div class="table-header-row">
+        <div>
+          <h3 class="card-title">Recent Inspection Log</h3>
+          <p class="card-desc">Audit trail of the last 20 inspections from the manufacturing line.</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="table-filter-row">
+          <div class="filter-item">
+            <label for="defectTypeFilter">Type:</label>
+            <select id="defectTypeFilter" onchange="applyTableFilters()">
+              <option value="all">All Categories</option>
+              <option value="normal">Normal (Conforming)</option>
+              <option value="crack">Crack</option>
+              <option value="scratch">Scratch</option>
+              <option value="dent">Dent</option>
+              <option value="stain">Stain</option>
+              <option value="discoloration">Discoloration</option>
+              <option value="dimensional_irregularity">Dimensional Irreg.</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label for="severityFilter">Severity:</label>
+            <select id="severityFilter" onchange="applyTableFilters()">
+              <option value="all">All Severities</option>
+              <option value="None">None (Normal)</option>
+              <option value="Minor">Minor (&lt;30)</option>
+              <option value="Major">Major (30–70)</option>
+              <option value="Critical">Critical (&gt;70)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Timestamp</th>
+              <th>Filename</th>
+              <th>Result</th>
+              <th>Defect Category</th>
+              <th>Confidence</th>
+              <th>Defect Area</th>
+              <th>Severity Score</th>
+              <th>Severity Tier</th>
+            </tr>
+          </thead>
+          <tbody id="inspectionsTableBody">
+            <tr>
+              <td colspan="9" class="text-center text-muted py-6">Loading inspection database...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Clear History Confirmation Modal -->
+  <div id="clearModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <span class="modal-icon">⚠️</span>
+        <h3>Confirm Database Purge</h3>
+      </div>
+      <p class="modal-body">
+        Are you sure you want to delete all historical inspection records from the SQLite database?
+        This action cannot be undone.
+      </p>
+      <div class="modal-actions">
+        <button onclick="closeClearModal()" class="btn btn-secondary">Cancel</button>
+        <button onclick="executeClearHistory()" class="btn btn-danger">Yes, Clear Database</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard Script -->
+  <script>
+    let currentDays = 30;
+    let timelineChart = null;
+    let distributionChart = null;
+    let severityChart = null;
+
+    function setDays(days) {
+      currentDays = days;
+      document.getElementById('btnDays7').classList.toggle('active', days === 7);
+      document.getElementById('btnDays30').classList.toggle('active', days === 30);
+      document.getElementById('chartScopeLabel').textContent = `Last ${days} Days`;
+      fetchDashboardData();
+    }
+
+    function applyTableFilters() {
+      fetchDashboardData();
+    }
+
+    async function fetchDashboardData() {
+      const typeFilter = document.getElementById('defectTypeFilter').value;
+      const sevFilter = document.getElementById('severityFilter').value;
+
+      try {
+        const res = await fetch(`/api/dashboard-data?days=${currentDays}&defect_type=${typeFilter}&severity=${sevFilter}`);
+        if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+        const data = await res.json();
+        renderDashboard(data);
+      } catch (err) {
+        console.error('Failed to load dashboard data:', err);
+      }
+    }
+
+    function renderDashboard(data) {
+      // 1. KPI Summary Cards
+      const s = data.summary;
+      document.getElementById('kpiTotal').textContent = s.total_inspections.toLocaleString();
+      document.getElementById('kpiDefects').textContent = s.total_defects.toLocaleString();
+      document.getElementById('kpiRate').textContent = `${s.rejection_rate_percent}%`;
+      document.getElementById('kpiAvgSeverity').textContent = `${s.avg_severity_score} / 100`;
+
+      // 2. Line Chart: Timeline of Defects & Conforming parts
+      const timelineLabels = data.timeline.map(t => t.day.slice(5)); // MM-DD
+      const defectsData = data.timeline.map(t => t.defect_count);
+      const conformingData = data.timeline.map(t => t.conforming_count);
+
+      if (timelineChart) timelineChart.destroy();
+      const ctxLine = document.getElementById('timelineChart').getContext('2d');
+      timelineChart = new Chart(ctxLine, {
+        type: 'line',
+        data: {
+          labels: timelineLabels,
+          datasets: [
+            {
+              label: 'Defective Items',
+              data: defectsData,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              pointRadius: 3
+            },
+            {
+              label: 'Conforming Items',
+              data: conformingData,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.06)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true,
+              pointRadius: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#94a3b8', font: { size: 11 } } }
+          },
+          scales: {
+            x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', precision: 0 } }
+          }
+        }
+      });
+
+      // 3. Bar Chart: Defect Categories
+      const distKeys = Object.keys(data.defect_distribution);
+      const distVals = Object.values(data.defect_distribution);
+
+      if (distributionChart) distributionChart.destroy();
+      const ctxBar = document.getElementById('distributionChart').getContext('2d');
+      distributionChart = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: distKeys.map(k => k.replace('_', ' ').toUpperCase()),
+          datasets: [{
+            label: 'Incidents',
+            data: distVals,
+            backgroundColor: [
+              '#ef4444', '#f59e0b', '#06b6d4', '#a855f7', '#ec4899', '#3b82f6'
+            ],
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } },
+            y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b', precision: 0 } }
+          }
+        }
+      });
+
+      // 4. Donut Chart: Severity Breakdown
+      const sevLabels = ['Minor', 'Major', 'Critical', 'None'];
+      const sevData = [
+        data.severity_breakdown['Minor'] || 0,
+        data.severity_breakdown['Major'] || 0,
+        data.severity_breakdown['Critical'] || 0,
+        data.severity_breakdown['None'] || 0
+      ];
+
+      if (severityChart) severityChart.destroy();
+      const ctxDonut = document.getElementById('severityChart').getContext('2d');
+      severityChart = new Chart(ctxDonut, {
+        type: 'doughnut',
+        data: {
+          labels: sevLabels,
+          datasets: [{
+            data: sevData,
+            backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#334155'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '65%',
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }
+          }
+        }
+      });
+
+      // 5. Recent Inspections Table
+      const tbody = document.getElementById('inspectionsTableBody');
+      if (data.recent_inspections.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-6">No inspections match current filter criteria.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.recent_inspections.map(row => {
+        const isDef = row.is_defective;
+        const resBadge = isDef
+          ? `<span class="badge badge-defective">DEFECT</span>`
+          : `<span class="badge badge-pass">PASS</span>`;
+
+        let sevClass = 'sev-none';
+        if (row.severity_category === 'Critical') sevClass = 'sev-critical';
+        else if (row.severity_category === 'Major') sevClass = 'sev-major';
+        else if (row.severity_category === 'Minor') sevClass = 'sev-minor';
+
+        return `
+          <tr>
+            <td class="font-mono text-muted">#${row.id}</td>
+            <td class="font-mono text-muted text-xs">${row.timestamp}</td>
+            <td class="font-semibold">${row.filename}</td>
+            <td>${resBadge}</td>
+            <td class="capitalize">${row.defect_type.replace('_', ' ')}</td>
+            <td class="font-mono">${(row.confidence * 100).toFixed(1)}%</td>
+            <td class="font-mono">${row.defect_area > 0 ? `${row.defect_area} px` : '—'}</td>
+            <td class="font-mono font-bold">${row.severity_score}</td>
+            <td><span class="sev-pill ${sevClass}">${row.severity_category.toUpperCase()}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Clear History Modal & Execution (Prompt 11 & 13)
+    function confirmClearHistory() {
+      document.getElementById('clearModal').classList.remove('hidden');
+    }
+
+    function closeClearModal() {
+      document.getElementById('clearModal').classList.add('hidden');
+    }
+
+    async function executeClearHistory() {
+      try {
+        const res = await fetch('/clear-history', { method: 'POST' });
+        const json = await res.json();
+        if (res.ok) {
+          closeClearModal();
+          fetchDashboardData();
+        } else {
+          alert(json.error || 'Failed to clear history.');
+        }
+      } catch (err) {
+        alert('Error connecting to server.');
+      }
+    }
+
+    // Initial load on page ready
+    document.addEventListener('DOMContentLoaded', fetchDashboardData);
+  </script>
+</body>
+</html>

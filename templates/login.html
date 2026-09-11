@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operator Login — Vision-Based Defect Inspection</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-body">
+  <div class="auth-container">
+    <div class="auth-header">
+      <div class="logo-icon large">👁️</div>
+      <h1 class="auth-title">Industrial Vision Quality Console</h1>
+      <p class="auth-subtitle">Sign in to access inspection stations, scan cameras, and telemetry</p>
+    </div>
+
+    <!-- Flash Message Display -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert-box {{ category }}">
+            <span class="alert-icon">{{ '⚠️' if category == 'error' else 'ℹ️' }}</span>
+            <span class="alert-text">{{ message }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card auth-card">
+      <form method="POST" action="/login">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" class="form-input" placeholder="e.g. admin or operator" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="Enter password" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full btn-large">
+          <span class="btn-icon">🔐</span> Sign In to Inspection Console
+        </button>
+      </form>
+
+      <!-- Quick Demo Login Helpers -->
+      <div class="demo-login-box">
+        <div class="demo-login-title">Quick Demo Logins (Prompt 13):</div>
+        <div class="demo-btn-row">
+          <button type="button" onclick="fillCreds('admin', 'admin123')" class="btn-demo admin">
+            Admin (Full Access + Purge DB)
+          </button>
+          <button type="button" onclick="fillCreds('operator', 'operator123')" class="btn-demo operator">
+            Operator (Scan & Analyze)
+          </button>
+        </div>
+      </div>
+
+      <div class="auth-footer-link">
+        Don't have an account? <a href="/register">Register New Operator Account</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function fillCreds(user, pass) {
+      document.getElementById('username').value = user;
+      document.getElementById('password').value = pass;
+    }
+  </script>
+</body>
+</html>

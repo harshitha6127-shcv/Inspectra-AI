@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Camera Stream Inspection — Manufacturing QA</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">📹</div>
+        <div>
+          <h1 class="brand-title">Live Camera Inspection Console</h1>
+          <p class="brand-subtitle">Real-Time In-Line Optical Inspection (Prompt 10)</p>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Batch Upload</a>
+        <a href="/scan" class="nav-btn">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn">Analytics</a>
+        <a href="/live" class="nav-btn active">Live Stream</a>
+      </nav>
+
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Logged in as <strong>{{ current_user.username }}</strong>
+          <span class="role-pill role-{{ current_user.role }}">{{ current_user.role|upper }}</span>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Camera Permissions Alert -->
+    <div id="cameraAlert" class="alert-box error hidden">
+      <span class="alert-icon">⚠️</span>
+      <span id="cameraAlertText" class="alert-text">Camera permission required. Please allow access to webcam.</span>
+    </div>
+
+    <div class="live-grid">
+      <!-- Left Column: Video Feed & Controls -->
+      <div class="card live-viewport-card">
+        <div class="viewport-header">
+          <div class="stream-indicator">
+            <span id="streamDot" class="live-dot pulse"></span>
+            <span id="streamStatusText">Camera Active</span>
+          </div>
+          <div class="camera-device-label" id="cameraDeviceLabel">Default Optical Sensor</div>
+        </div>
+
+        <div class="video-container">
+          <video id="videoFeed" autoplay playsinline muted></video>
+          <!-- Hidden capture canvas for extracting frames -->
+          <canvas id="captureCanvas" style="display: none;"></canvas>
+          <div id="videoOverlay" class="video-crosshairs"></div>
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="live-controls-row">
+          <button id="captureBtn" class="btn btn-primary">
+            📸 Capture & Analyze
+          </button>
+
+          <div class="toggle-wrapper">
+            <label class="switch">
+              <input type="checkbox" id="autoCaptureToggle">
+              <span class="slider round"></span>
+            </label>
+            <span class="toggle-label">Continuous Auto-Capture (every 2s)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Continuously Updating Inspection Result -->
+      <div class="card live-result-card">
+        <h2 class="card-title">Latest Inspection Result</h2>
+        <p class="card-desc" id="lastUpdated">Awaiting initial frame capture...</p>
+
+        <!-- Dynamic Status Banner -->
+        <div id="liveStatusBanner" class="live-banner pass">
+          <div class="live-banner-main">
+            <span id="liveStatusBadge" class="status-badge pass">PASS</span>
+            <span id="liveDefectTitle" class="live-defect-title">Normal Component</span>
+          </div>
+          <div class="live-conf-box">
+            <div id="liveConfidence" class="conf-value">--%</div>
+            <div class="conf-label">Confidence</div>
+          </div>
+        </div>
+
+        <!-- Live Metrics Breakdown -->
+        <div class="metrics-panel mt-4">
+          <div class="metric-row">
+            <span class="metric-label">Severity:</span>
+            <span id="liveSeverity" class="metric-value">None (0/100)</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Recommended Action:</span>
+            <span id="liveAction" class="metric-value font-semibold">Pass to downstream</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Anomaly Score:</span>
+            <span id="liveAnomalyScore" class="metric-value font-mono">0.000</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Defect Area:</span>
+            <span id="liveDefectArea" class="metric-value font-mono">0 px²</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">Inference Time:</span>
+            <span id="liveInferenceTime" class="metric-value font-mono text-cyan">-- ms</span>
+          </div>
+        </div>
+
+        <!-- Inspected Frame Overlay Thumbnail -->
+        <div class="last-annotated-wrapper mt-4">
+          <div class="text-xs text-muted mb-1">Processed Overlay Frame:</div>
+          <div class="annotated-thumb-box">
+            <img id="lastAnnotatedImg" src="" alt="Last annotated frame" class="last-annotated-thumb hidden">
+            <div id="noAnnotatedPlaceholder" class="thumb-placeholder">No frame analyzed yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/live.js"></script>
+</body>
+</html>

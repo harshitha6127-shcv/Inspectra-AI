@@ -1,0 +1,6 @@
+{
+  "name": "Vision-Based Defect Detection",
+  "description": "Industrial manufacturing quality inspection system featuring OpenCV preprocessing, autoencoder anomaly detection, multi-class defect classification, Grad-CAM localization, and refinement.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

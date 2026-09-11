@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error {{ error_code }} — Vision-Based Defect Inspection</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-body">
+  <div class="auth-container">
+    <div class="card auth-card text-center">
+      <div class="logo-icon large mx-auto">⚠️</div>
+      <h1 class="text-2xl font-bold text-rose mt-3">Error {{ error_code }}</h1>
+      <p class="text-main font-semibold mt-2">{{ message or "An unexpected issue occurred." }}</p>
+      <p class="text-muted text-sm mt-2">
+        Please check your network connection, parameters, or permissions and try again.
+      </p>
+
+      <div class="mt-6 flex gap-3 justify-center">
+        <a href="/" class="btn btn-primary">Return to Inspection Station</a>
+        <a href="/dashboard" class="btn btn-secondary">View Analytics</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register Account — Vision-Based Defect Inspection</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-body">
+  <div class="auth-container">
+    <div class="auth-header">
+      <div class="logo-icon large">👁️</div>
+      <h1 class="auth-title">Create Inspection Account</h1>
+      <p class="auth-subtitle">Provision plant operator or line supervisor credentials</p>
+    </div>
+
+    <!-- Flash Message Display -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert-box {{ category }}">
+            <span class="alert-icon">{{ '⚠️' if category == 'error' else 'ℹ️' }}</span>
+            <span class="alert-text">{{ message }}</span>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="card auth-card">
+      <form method="POST" action="/register">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" class="form-input" placeholder="Desired username" required autofocus>
+        </div>
+
+        <div class="form-group">
+          <label for="email">Work Email</label>
+          <input type="email" id="email" name="email" class="form-input" placeholder="operator@factory.local" required>
+        </div>
+
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" class="form-input" placeholder="Create password" required>
+        </div>
+
+        <div class="form-group">
+          <label for="role">Station Role</label>
+          <select id="role" name="role" class="form-input">
+            <option value="operator" selected>Line Operator (Scan, Inspect, View Analytics)</option>
+            <option value="admin">System Administrator (Full Access + Clear History)</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full btn-large">
+          <span class="btn-icon">✨</span> Register Account
+        </button>
+      </form>
+
+      <div class="auth-footer-link">
+        Already registered? <a href="/login">Sign In Here</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
