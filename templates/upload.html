@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+
+{% block title %}Dedicated Upload & Inspection — Inspectra AI{% endblock %}
+
+{% block content %}
+<div class="upload-page-wrapper">
+  <!-- Page Header -->
+  <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px;">
+    <div>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="logo-icon" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
+          📤
+        </div>
+        <div>
+          <h1 style="font-size: 20px; font-weight: 800; color: #fff; margin: 0; letter-spacing: -0.02em;">
+            Optical Inspection Upload
+          </h1>
+          <p style="font-size: 12px; color: var(--text-muted); margin: 2px 0 0 0;">
+            High-precision automated defect detection via CLAHE &bull; Autoencoder Anomaly Scoring &bull; Grad-CAM Localization
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mode & Options Toolbar -->
+    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+      <!-- AI Dual-Scan Toggle (Prompt 18) -->
+      <div class="ai-toggle-card" style="display: flex; align-items: center; gap: 10px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 8px; padding: 6px 12px;">
+        <label class="switch" style="position: relative; display: inline-block; width: 34px; height: 18px; margin: 0;">
+          <input type="checkbox" id="aiScanToggle" style="opacity: 0; width: 0; height: 0;">
+          <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 18px;"></span>
+        </label>
+        <div style="display: flex; flex-direction: column;">
+          <span style="font-size: 11px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 4px;">
+            <span>✨</span> AI Dual-Scan Mode
+          </span>
+          <span style="font-size: 9px; color: var(--text-muted);">Compare with Multimodal AI</span>
+        </div>
+        <select id="aiProviderSelect" style="display: none; background: #1e293b; border: 1px solid #475569; color: var(--accent-cyan); font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+          <option value="gemini">Gemini 1.5 Flash</option>
+          <option value="openai">GPT-4o Vision</option>
+          <option value="anthropic">Claude 3.5 Sonnet</option>
+        </select>
+      </div>
+
+      <a href="/scan" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px;">
+        <span>📷</span> Switch to Live Camera
+      </a>
+    </div>
+  </div>
+
+  <!-- Upload Form & Drop Zone Section -->
+  <section class="card" style="margin-bottom: 24px; padding: 24px; border: 1px solid var(--border-color); border-radius: 12px; background: #0b1120;">
+    <!-- Optional Traceability Batch / Product ID input -->
+    <div style="margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; background: #020617; padding: 12px 16px; border-radius: 8px; border: 1px solid #1e293b;">
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
+        <span style="font-size: 16px;">🏷️</span>
+        <div style="flex: 1;">
+          <label for="batchProductId" style="display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 2px;">
+            Batch / Product Traceability ID (Optional):
+          </label>
+          <input type="text" id="batchProductId" placeholder="e.g. BATCH-2026-A104 or leave blank to auto-generate" style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 6px 10px; color: #fff; font-family: var(--font-mono); font-size: 12px;" />
+        </div>
+      </div>
+      <div style="font-size: 11px; color: var(--text-muted); max-width: 320px;">
+        Assigned ID is embedded in inspection records and generated into printable physical QR tags.
+      </div>
+    </div>
+
+    <!-- Drag & Drop Zone -->
+    <div id="uploadDropZone" class="drop-zone" style="border: 2px dashed #334155; border-radius: 10px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1); background: rgba(15, 23, 42, 0.5);">
+      <div style="font-size: 42px; line-height: 1; margin-bottom: 12px; opacity: 0.9;">📂</div>
+      <h3 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0 0 6px 0;">
+        Drag & Drop Manufactured Part Images Here
+      </h3>
+      <p style="font-size: 12px; color: var(--text-muted); margin: 0 0 14px 0;">
+        or <span style="color: var(--accent-cyan); font-weight: 600; text-decoration: underline;">click to browse files</span> from your workstation
+      </p>
+      <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: #64748b; background: #020617; padding: 4px 12px; border-radius: 9999px; border: 1px solid #1e293b;">
+        <span>Format: <strong>JPG, PNG, BMP</strong></span>
+        <span>&bull;</span>
+        <span>Single or Multi-part Batch</span>
+        <span>&bull;</span>
+        <span>Max 15MB/file</span>
+      </div>
+      <input type="file" id="uploadFileInput" multiple accept=".jpg,.jpeg,.png,.bmp" style="display: none;" />
+    </div>
+
+    <!-- Selected Files Thumbnail Preview Area (Before Analysis) -->
+    <div id="previewSection" class="hidden" style="margin-top: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #1e293b;">
+        <span style="font-size: 12px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px;">
+          <span>📸</span> Staged for Inspection (<span id="stagedCount">0</span> parts)
+        </span>
+        <button type="button" id="clearAllBtn" onclick="clearStagedFiles()" class="btn btn-sm btn-secondary" style="font-size: 11px; padding: 4px 8px; color: #f87171;">
+          Clear All
+        </button>
+      </div>
+
+      <!-- Thumbnail Preview Grid -->
+      <div id="thumbnailGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; margin-bottom: 16px;"></div>
+
+      <!-- Action Button Bar -->
+      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 16px;">
+        <button type="button" id="startAnalyzeBtn" onclick="runBatchAnalysis()" class="btn btn-primary btn-large" style="padding: 10px 24px; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px;">
+          <span>⚡</span> <span id="analyzeBtnLabel">Analyze Selected Parts</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Loading State (Skeleton / Spinner) -->
+  <div id="uploadLoading" class="card hidden animate-slide-up" style="padding: 36px 20px; text-align: center; margin-bottom: 24px; background: #0f172a; border: 1px solid var(--border-color);">
+    <div class="spinner" style="width: 44px; height: 44px; margin: 0 auto 16px auto; border: 3px solid rgba(6, 182, 212, 0.2); border-top-color: var(--accent-cyan); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+    <h3 style="font-size: 15px; font-weight: 700; color: #fff; margin: 0 0 6px 0;">
+      Executing Multi-Stage Vision Analysis Pipeline
+    </h3>
+    <p id="loadingStatusText" style="font-size: 12px; color: var(--text-muted); margin: 0 0 14px 0;">
+      Extracting optical features (CLAHE) &bull; Evaluating Autoencoder reconstruction loss &bull; Computing Grad-CAM localization &bull; Synthesizing severity scores...
+    </p>
+    <div style="max-width: 380px; height: 4px; background: #1e293b; border-radius: 9999px; margin: 0 auto; overflow: hidden;">
+      <div class="loading-bar-fill" style="height: 100%; width: 60%; background: linear-gradient(90deg, #06b6d4, #3b82f6); border-radius: 9999px; animation: pulse-glow 1.5s infinite;"></div>
+    </div>
+  </div>
+
+  <!-- Results Section -->
+  <div id="resultsContainer" class="hidden animate-slide-up">
+    <!-- Batch Summary Strip (Shown when multiple files analyzed or always for comprehensive overview) -->
+    <div id="batchSummaryStrip" class="card" style="padding: 16px 20px; margin-bottom: 24px; background: #0f172a; border: 1px solid var(--border-color); border-radius: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+          <div style="border-right: 1px solid #334155; padding-right: 16px;">
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Total Analyzed</div>
+            <div id="summaryTotal" style="font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: #f8fafc;">0</div>
+          </div>
+          <div style="border-right: 1px solid #334155; padding-right: 16px;">
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #ef4444;">Defective Units</div>
+            <div id="summaryDefective" style="font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: #ef4444;">0</div>
+          </div>
+          <div style="border-right: 1px solid #334155; padding-right: 16px;">
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: #10b981;">Conforming Units</div>
+            <div id="summaryNormal" style="font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: #10b981;">0</div>
+          </div>
+          <div style="border-right: 1px solid #334155; padding-right: 16px;">
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Defect Rejection Rate</div>
+            <div id="summaryRate" style="font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: var(--accent-cyan);">0%</div>
+          </div>
+          <div>
+            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--text-muted);">Mean Confidence</div>
+            <div id="summaryAvgConf" style="font-size: 20px; font-weight: 800; font-family: var(--font-mono); color: #f8fafc;">--%</div>
+          </div>
+        </div>
+
+        <!-- Batch Download Actions -->
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a id="downloadBatchPdfBtn" href="#" target="_blank" class="btn btn-primary" style="font-size: 12px; padding: 6px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <span>📄</span> Download Batch PDF Report
+          </a>
+          <a id="downloadBatchCsvBtn" href="#" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            <span>📥</span> Export CSV
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Grid -->
+    <div id="resultsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 20px;"></div>
+  </div>
+</div>
+
+<!-- Modal for Enlarge Annotated Image -->
+<div id="imgZoomModal" class="modal-overlay hidden" onclick="closeZoomModal()">
+  <div class="modal-card" style="max-width: 900px; padding: 16px;" onclick="event.stopPropagation()">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 id="zoomTitle" style="font-size: 14px; font-weight: 700; color: #fff; margin: 0;">Annotated Overlay Inspection</h3>
+      <button onclick="closeZoomModal()" class="btn-icon" style="border: none; font-size: 18px;">&times;</button>
+    </div>
+    <img id="zoomedImg" src="" alt="Zoomed view" style="width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px; background: #020617;" />
+  </div>
+</div>
+
+<style>
+  .slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+  }
+  input:checked + .slider {
+    background-color: var(--accent-cyan);
+  }
+  input:checked + .slider:before {
+    transform: translateX(16px);
+  }
+  .drop-zone.drag-over {
+    border-color: var(--accent-cyan) !important;
+    background: rgba(6, 182, 212, 0.1) !important;
+    transform: scale(1.01);
+  }
+  .preview-thumb-card {
+    position: relative;
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    overflow: hidden;
+    padding: 6px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .preview-thumb-card:hover {
+    border-color: var(--accent-cyan);
+    transform: translateY(-2px);
+  }
+  .thumb-remove-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 20px;
+    height: 20px;
+    background: rgba(239, 68, 68, 0.85);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+  }
+  .thumb-remove-btn:hover {
+    background: #dc2626;
+  }
+  .result-card-container {
+    background: #0f172a;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .result-card-container:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  let stagedFiles = [];
+  let currentBatchId = null;
+
+  const dropZone = document.getElementById('uploadDropZone');
+  const fileInput = document.getElementById('uploadFileInput');
+  const previewSection = document.getElementById('previewSection');
+  const thumbnailGrid = document.getElementById('thumbnailGrid');
+  const stagedCountEl = document.getElementById('stagedCount');
+  const analyzeBtnLabel = document.getElementById('analyzeBtnLabel');
+  const aiScanToggle = document.getElementById('aiScanToggle');
+  const aiProviderSelect = document.getElementById('aiProviderSelect');
+
+  // 1. Toggle AI Scan Provider select
+  aiScanToggle.addEventListener('change', function() {
+    aiProviderSelect.style.display = this.checked ? 'inline-block' : 'none';
+  });
+
+  // 2. Drag & Drop File Handlers
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  ['dragenter', 'dragover'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+    });
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length > 0) {
+      addFiles(Array.from(dt.files));
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(Array.from(e.target.files));
+      fileInput.value = ''; // Reset for re-selection
+    }
+  });
+
+  function addFiles(newFiles) {
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.bmp'];
+    const filtered = newFiles.filter(file => {
+      const name = file.name.toLowerCase();
+      return validExtensions.some(ext => name.endsWith(ext));
+    });
+
+    if (filtered.length < newFiles.length) {
+      if (window.showToast) {
+        window.showToast('Some unsupported files were skipped. Only JPG, PNG, and BMP are accepted.', 'warning');
+      }
+    }
+
+    filtered.forEach(file => {
+      // Avoid duplicate by name and size
+      const exists = stagedFiles.some(f => f.name === file.name && f.size === file.size);
+      if (!exists) {
+        stagedFiles.push(file);
+      }
+    });
+
+    renderPreviews();
+  }
+
+  function removeFile(index) {
+    stagedFiles.splice(index, 1);
+    renderPreviews();
+  }
+
+  function clearStagedFiles() {
+    stagedFiles = [];
+    renderPreviews();
+  }
+
+  function renderPreviews() {
+    if (stagedFiles.length === 0) {
+      previewSection.classList.add('hidden');
+      return;
+    }
+
+    previewSection.classList.remove('hidden');
+    stagedCountEl.textContent = stagedFiles.length;
+    analyzeBtnLabel.textContent = `Analyze ${stagedFiles.length} ${stagedFiles.length === 1 ? 'Part' : 'Parts'}`;
+
+    thumbnailGrid.innerHTML = stagedFiles.map((file, idx) => {
+      const blobUrl = URL.createObjectURL(file);
+      const sizeFormatted = (file.size / 1024).toFixed(0) + ' KB';
+      return `
+        <div class="preview-thumb-card">
+          <button type="button" class="thumb-remove-btn" onclick="removeFile(${idx})" title="Remove image">&times;</button>
+          <img src="${blobUrl}" alt="${file.name}" style="width: 100%; height: 95px; object-fit: cover; border-radius: 4px; display: block; margin-bottom: 6px;" />
+          <div style="font-size: 11px; font-weight: 600; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${file.name}">
+            ${file.name}
+          </div>
+          <div style="font-size: 10px; color: #64748b; font-family: var(--font-mono);">
+            ${sizeFormatted}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 3. Analyze Selected Files
+  async function runBatchAnalysis() {
+    if (stagedFiles.length === 0) return;
+
+    const loadingEl = document.getElementById('uploadLoading');
+    const resultsContainer = document.getElementById('resultsContainer');
+    const analyzeBtn = document.getElementById('startAnalyzeBtn');
+
+    loadingEl.classList.remove('hidden');
+    resultsContainer.classList.add('hidden');
+    analyzeBtn.disabled = true;
+
+    const formData = new FormData();
+    stagedFiles.forEach(f => {
+      formData.append('images', f);
+    });
+
+    const userPid = document.getElementById('batchProductId').value.trim();
+    if (userPid) {
+      formData.append('product_id', userPid);
+    }
+
+    const aiEnabled = aiScanToggle.checked;
+    if (aiEnabled) {
+      formData.append('enable_ai_scan', 'true');
+      formData.append('provider', aiProviderSelect.value);
+    }
+
+    try {
+      const res = await fetch('/analyze', {
+        method: 'POST',
+        body: formData
+      });
+
+      loadingEl.classList.add('hidden');
+      analyzeBtn.disabled = false;
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Inspection failed during execution.');
+        return;
+      }
+
+      currentBatchId = data.batch_id;
+      renderResults(data);
+    } catch (err) {
+      loadingEl.classList.add('hidden');
+      analyzeBtn.disabled = false;
+      alert('Communication error with inspection server: ' + err.message);
+    }
+  }
+
+  // 4. Render Results Grid & Summary Strip
+  function renderResults(data) {
+    const results = data.results || [];
+    if (results.length === 0) return;
+
+    const resultsContainer = document.getElementById('resultsContainer');
+    const resultsGrid = document.getElementById('resultsGrid');
+    resultsContainer.classList.remove('hidden');
+
+    // Summary Strip
+    const total = results.length;
+    const defectiveCount = results.filter(r => r.is_defective).length;
+    const normalCount = total - defectiveCount;
+    const rejectRate = total > 0 ? ((defectiveCount / total) * 100).toFixed(1) : 0;
+    const avgConf = total > 0 ? ((results.reduce((acc, r) => acc + (r.confidence || 0), 0) / total) * 100).toFixed(1) : 0;
+
+    document.getElementById('summaryTotal').textContent = total;
+    document.getElementById('summaryDefective').textContent = defectiveCount;
+    document.getElementById('summaryNormal').textContent = normalCount;
+    document.getElementById('summaryRate').textContent = `${rejectRate}%`;
+    document.getElementById('summaryAvgConf').textContent = `${avgConf}%`;
+
+    // Download Batch PDF and CSV buttons
+    document.getElementById('downloadBatchPdfBtn').href = `/report/pdf/batch/${data.batch_id}`;
+    document.getElementById('downloadBatchCsvBtn').href = `/report/${data.batch_id}`;
+
+    // Render each Result Card
+    resultsGrid.innerHTML = results.map((r, i) => {
+      const isDef = r.is_defective;
+      const badgeClass = isDef ? 'badge-defective' : 'badge-pass';
+      const badgeText = isDef ? 'DEFECTIVE' : 'NORMAL / PASS';
+
+      let sevClass = '#10b981';
+      if (r.severity_category === 'Critical') sevClass = '#ef4444';
+      else if (r.severity_category === 'Major') sevClass = '#f59e0b';
+      else if (r.severity_category === 'Minor') sevClass = '#06b6d4';
+
+      const overlayImg = r.annotated_image_base64 || '';
+      const confPct = ((r.confidence || 0) * 100).toFixed(1);
+
+      // AI Dual Scan Comparison Card (if present)
+      let aiSectionHtml = '';
+      if (r.ai_scan) {
+        const ai = r.ai_scan;
+        const agrees = r.agreement;
+        const agreeBadge = agrees
+          ? `<span style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700;">✓ Models Agree</span>`
+          : `<span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700;">⚠️ Discrepancy</span>`;
+
+        aiSectionHtml = `
+          <div style="margin-top: 14px; padding: 12px; background: #020617; border: 1px solid #1e293b; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; font-weight: 700; color: #a78bfa; display: flex; align-items: center; gap: 4px;">
+                <span>✨</span> AI Vision (${(r.provider || 'gemini').toUpperCase()})
+              </span>
+              ${agreeBadge}
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; margin-bottom: 6px;">
+              <div>
+                <span style="color: var(--text-muted);">Custom CAE:</span>
+                <strong style="color:${isDef ? '#ef4444' : '#10b981'};">${isDef ? 'DEFECT' : 'PASS'}</strong>
+              </div>
+              <div>
+                <span style="color: var(--text-muted);">AI Model:</span>
+                <strong style="color:${ai.is_defective ? '#ef4444' : '#10b981'};">${ai.is_defective ? 'DEFECT' : 'PASS'}</strong>
+              </div>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1; line-height: 1.4; background: rgba(15, 23, 42, 0.6); padding: 6px 8px; border-radius: 4px; max-height: 60px; overflow-y: auto;">
+              ${ai.analysis || 'No detailed analysis returned.'}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="result-card-container">
+          <!-- Card Header & Badge -->
+          <div style="padding: 14px 16px; background: #020617; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #fff; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${r.filename}">
+                ${r.filename}
+              </div>
+              <div style="font-size: 10px; color: var(--text-muted); font-family: var(--font-mono);">
+                Unit ID: <a href="${r.product_history_url}" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-weight: 600;">${r.product_id || 'PROD-N/A'}</a>
+              </div>
+            </div>
+            <span class="status-badge ${badgeClass}" style="padding: 4px 10px; font-size: 11px; font-weight: 700;">
+              ${badgeText}
+            </span>
+          </div>
+
+          <!-- Annotated Image Overlay Viewport -->
+          <div style="position: relative; background: #000; cursor: pointer;" onclick="openZoomModal('${overlayImg}', '${r.filename}')">
+            <img src="${overlayImg}" alt="Inspection overlay" style="width: 100%; height: 210px; object-fit: contain; display: block;" />
+            <div style="position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; pointer-events: none;">
+              🔍 Click to enlarge
+            </div>
+          </div>
+
+          <!-- Metrics Body -->
+          <div style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 11px;">
+                <div>
+                  <span style="color: var(--text-muted); display: block;">Defect Type:</span>
+                  <strong style="color: #f1f5f9; text-transform: capitalize;">${r.defect_type.replace('_', ' ')}</strong>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block;">Confidence:</span>
+                  <strong style="color: #f1f5f9; font-family: var(--font-mono);">${confPct}%</strong>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block;">Defect Area:</span>
+                  <strong style="color: #f1f5f9; font-family: var(--font-mono);">${r.defect_area_mm2 || 0} mm² (${r.defect_area || 0} px)</strong>
+                </div>
+                <div>
+                  <span style="color: var(--text-muted); display: block;">Severity Score:</span>
+                  <span style="font-weight: 700; color:${sevClass}; font-family: var(--font-mono);">
+                    ${r.severity_score} &bull; ${r.severity_category}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Recommended Action -->
+              <div style="padding: 8px 10px; background: rgba(6, 182, 212, 0.05); border-left: 3px solid var(--accent-cyan); border-radius: 0 4px 4px 0; margin-bottom: 10px;">
+                <div style="font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--accent-cyan);">Action:</div>
+                <div style="font-size: 11px; color: #e2e8f0; line-height: 1.3;">${r.recommended_action || 'Pass part.'}</div>
+              </div>
+
+              <!-- Optional AI Vision Dual-Scan block -->
+              ${aiSectionHtml}
+            </div>
+
+            <!-- Action Buttons Footer -->
+            <div style="display: flex; gap: 8px; margin-top: 14px; pt-3; border-top: 1px solid #1e293b;">
+              <a href="/report/pdf/${r.inspection_id}" target="_blank" class="btn btn-secondary" style="flex: 1; font-size: 11px; padding: 6px; text-align: center; text-decoration: none;">
+                📄 PDF Report
+              </a>
+              <a href="${r.qr_code_url}?download=1" class="btn btn-secondary" style="font-size: 11px; padding: 6px 10px; text-decoration: none;" title="Download Printable QR Tag">
+                🔲 QR Tag
+              </a>
+              <a href="${r.product_history_url}" target="_blank" class="btn btn-secondary" style="font-size: 11px; padding: 6px 10px; text-decoration: none;" title="View Product Timeline">
+                ⏱️ History
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Scroll to results smoothly
+    resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // 5. Image Zoom Modal Functions
+  function openZoomModal(imgSrc, title) {
+    document.getElementById('zoomedImg').src = imgSrc;
+    document.getElementById('zoomTitle').textContent = `Inspection Overlay — ${title}`;
+    document.getElementById('imgZoomModal').classList.remove('hidden');
+  }
+
+  function closeZoomModal() {
+    document.getElementById('imgZoomModal').classList.add('hidden');
+  }
+</script>
+{% endblock %}

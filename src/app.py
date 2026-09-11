@@ -297,8 +297,15 @@ def logout():
 @app.route("/")
 @login_required
 def index():
-    """Main dashboard: drag-and-drop file upload & reporting (Prompt 8)."""
-    return render_template("index.html")
+    """Default entry page: redirects or serves dedicated upload page."""
+    return render_template("upload.html")
+
+
+@app.route("/upload")
+@login_required
+def upload_page():
+    """Dedicated single and batch image upload inspection page (separate from camera scan)."""
+    return render_template("upload.html")
 
 
 @app.route("/scan")
@@ -438,6 +445,22 @@ def analyze():
             result_item["product_id"] = assigned_pid
             result_item["product_history_url"] = f"/product/{assigned_pid}/history"
             result_item["qr_code_url"] = f"/api/product/{assigned_pid}/qr"
+
+            # Prompt 18: Multimodal AI Vision comparison if enabled via toggle
+            enable_ai = (request.form.get("enable_ai_scan") in ["true", "1", "yes"] or
+                         request.form.get("ai_scan") in ["true", "1", "yes"])
+            if enable_ai:
+                ai_prov = request.form.get("provider") or os.environ.get("AI_VISION_PROVIDER", "gemini")
+                try:
+                    ai_res = analyze_with_ai(save_path, provider=ai_prov)
+                    result_item["ai_scan"] = ai_res
+                    result_item["agreement"] = (result_item["is_defective"] == ai_res.get("is_defective", False))
+                    result_item["provider"] = ai_prov
+                except Exception as ex:
+                    logger.warning("AI vision scan error in analyze: %s", str(ex))
+                    result_item["ai_scan"] = {"error": str(ex), "is_defective": False, "analysis": "Unavailable"}
+                    result_item["agreement"] = None
+                    result_item["provider"] = ai_prov
 
             # Prompt 14: Structured Audit Log
             logger.info(
