@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vision-Based Defect Detection — Inspection Console</title>
+  <title>Inspectra AI — Ai powered visual inspection</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -13,8 +13,8 @@
       <div class="brand">
         <div class="logo-icon">👁️</div>
         <div>
-          <h1 class="brand-title">Vision-Based Defect Detection</h1>
-          <p class="brand-subtitle">Manufacturing Quality Inspection Workstation</p>
+          <h1 class="brand-title">Inspectra AI</h1>
+          <p class="brand-subtitle">Ai powered visual inspection</p>
         </div>
       </div>
       <nav class="nav-links">
@@ -140,9 +140,14 @@
           <h2 class="card-title">Batch Inspection Results</h2>
           <p id="batchSubtitle" class="card-desc">Showing results for inspected batch</p>
         </div>
-        <a id="downloadReportBtn" href="#" class="btn btn-outline">
-          📥 Download CSV Report
-        </a>
+        <div style="display: flex; gap: 8px;">
+          <a id="downloadReportBtn" href="#" class="btn btn-outline">
+            📥 Download CSV
+          </a>
+          <a id="downloadPdfReportBtn" href="#" class="btn btn-outline" style="border-color: var(--accent-cyan); color: var(--accent-cyan);">
+            📑 Download PDF Summary
+          </a>
+        </div>
       </div>
 
       <div class="table-responsive">

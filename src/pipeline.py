@@ -92,7 +92,20 @@ class DefectInspectionPipeline:
         else:
             img_bgr = image_input.copy()
 
-        # 1. Preprocess
+        # 1. Dynamically sync active thresholds from DB settings (Prompt 23)
+        try:
+            from models import db
+            dyn_thresh = db.get_setting("anomaly_threshold")
+            if dyn_thresh is not None:
+                self.anomaly_detector.threshold = float(dyn_thresh)
+                self.refinement_engine.anomaly_threshold = float(dyn_thresh)
+            dyn_min_area = db.get_setting("min_defect_area_px")
+            if dyn_min_area is not None:
+                self.refinement_engine.min_defect_area_px = int(float(dyn_min_area))
+        except Exception:
+            pass
+
+        # 2. Preprocess
         preprocessed, intermediates = preprocess_image(
             img_bgr,
             target_size=(256, 256),
@@ -101,7 +114,7 @@ class DefectInspectionPipeline:
             apply_denoise=True
         )
 
-        # 2. Grad-CAM Heatmap
+        # 3. Grad-CAM Heatmap
         heatmap = None
         if self.grad_cam is not None:
             try:
@@ -112,7 +125,7 @@ class DefectInspectionPipeline:
             except Exception:
                 heatmap = None
 
-        # 3. Refinement inspection
+        # 4. Refinement inspection
         res = self.refinement_engine.inspect(
             image=preprocessed,
             sample_id=sample_id,

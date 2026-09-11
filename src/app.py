@@ -47,6 +47,10 @@ if current_dir not in sys.path:
 
 from pipeline import run_inspection
 from models import db, User
+from version import get_version_info
+from ai_vision_scan import analyze_with_ai
+from report_generator import generate_pdf_report, generate_batch_pdf_report
+from qr_generator import generate_qr_png_bytes, generate_qr_svg, generate_qr_data_url
 
 # Paths relative to project root
 ROOT_DIR = os.path.dirname(current_dir)
@@ -110,8 +114,43 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp"}
 
-# In-memory batch report cache for temporary CSV download fallback
+# In-memory batch report cache for temporary CSV and PDF download
 BATCH_REPORTS: Dict[str, Dict[str, Any]] = {}
+
+# -----------------------------------------------------------------------------
+# CORS Configuration (Prompt 17)
+# -----------------------------------------------------------------------------
+try:
+    from flask_cors import CORS
+    raw_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:5000")
+    origins_list = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    CORS(app, origins=origins_list, supports_credentials=True)
+    logger.info("CORS initialized with allowed origins: %s", origins_list)
+except ImportError:
+    logger.warning("flask_cors not installed; relying on default CORS headers.")
+
+# -----------------------------------------------------------------------------
+# Rate Limiting Configuration (Prompt 17)
+# -----------------------------------------------------------------------------
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    limiter = Limiter(
+        key_func=get_remote_address,
+        app=app,
+        default_limits=["120 per minute"],
+        storage_uri="memory://"
+    )
+    logger.info("Flask-Limiter initialized with memory storage.")
+except ImportError:
+    class DummyLimiter:
+        def limit(self, *args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+    limiter = DummyLimiter()
+    logger.warning("flask_limiter not installed; using no-op dummy limiter.")
+
 
 
 def allowed_file(filename: str) -> bool:
@@ -173,9 +212,10 @@ def inject_user():
 
 
 # -----------------------------------------------------------------------------
-# Authentication Routes (Prompt 13)
+# Authentication Routes (Prompt 13 & 17)
 # -----------------------------------------------------------------------------
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("20 per minute")
 def login():
     """User authentication route."""
     if get_current_user():
@@ -282,10 +322,18 @@ def live():
     return render_template("live.html")
 
 
+@app.route("/ai-scan-view")
+@login_required
+def ai_scan_view():
+    """Multimodal AI Vision scan and model agreement comparison page (Prompt 18 & 19)."""
+    return render_template("ai_scan.html")
+
+
 # -----------------------------------------------------------------------------
-# Inspection API Route (Prompts 8, 11, 12, 14)
+# Inspection API Route (Prompts 8, 11, 12, 14, 17)
 # -----------------------------------------------------------------------------
 @app.route("/analyze", methods=["POST"])
+@limiter.limit("20 per minute")
 @login_required
 def analyze():
     """
@@ -373,8 +421,9 @@ def analyze():
             }
             results.append(result_item)
 
-            # Prompt 11: Insert row into SQLite inspections table
-            db.add_inspection(
+            # Prompt 11 & Prompt 21: Insert row into SQLite inspections table with product_id traceability
+            req_product_id = request.form.get("product_id") or request.form.get("batch_id") or None
+            insp_id, assigned_pid = db.add_inspection(
                 filename=raw_filename,
                 is_defective=insp["is_defective"],
                 defect_type=insp["defect_type"],
@@ -382,8 +431,13 @@ def analyze():
                 defect_area=insp["defect_area"],
                 severity_score=insp["severity_score"],
                 severity_category=insp["severity_category"],
-                user_id=user_id
+                user_id=user_id,
+                product_id=req_product_id
             )
+            result_item["inspection_id"] = insp_id
+            result_item["product_id"] = assigned_pid
+            result_item["product_history_url"] = f"/product/{assigned_pid}/history"
+            result_item["qr_code_url"] = f"/api/product/{assigned_pid}/qr"
 
             # Prompt 14: Structured Audit Log
             logger.info(
@@ -468,6 +522,362 @@ def download_report(batch_id: str):
 
 
 # -----------------------------------------------------------------------------
+# AI Vision Scan Route (Prompt 18)
+# -----------------------------------------------------------------------------
+@app.route("/ai-scan", methods=["POST"])
+@limiter.limit("20 per minute")
+@login_required
+def ai_scan():
+    """
+    POST /ai-scan:
+    Runs custom-trained ResNet/CAE inspection alongside external multimodal
+    AI vision model (Gemini / OpenAI / Claude) on the identical image.
+    Returns comparison payload with match agreement indicator and adds row to DB.
+    """
+    user = get_current_user()
+    user_id = user.id if user else None
+    username = user.username if user else "anonymous"
+
+    # Check for image file
+    file = None
+    for key in ["image", "images", "file"]:
+        if key in request.files:
+            file = request.files[key]
+            break
+
+    if not file or file.filename == "":
+        return jsonify({"error": "No image file provided for AI Vision scan."}), 400
+
+    raw_filename = secure_filename(file.filename) or f"aiscan_{int(time.time()*1000)}.jpg"
+    if not allowed_file(raw_filename):
+        return jsonify({"error": f"Invalid format '{raw_filename}'. Allowed: .jpg, .png, .bmp"}), 400
+
+    scan_dir = os.path.join(app.config["UPLOAD_FOLDER"], "ai_scans")
+    os.makedirs(scan_dir, exist_ok=True)
+    save_path = os.path.join(scan_dir, raw_filename)
+    file.save(save_path)
+
+    provider = request.form.get("provider") or os.environ.get("AI_VISION_PROVIDER", "gemini")
+
+    # 1. Run Custom Pipeline
+    try:
+        insp = run_inspection(save_path, output_dir=scan_dir, save_annotation=True)
+        annotated_bgr = insp.get("annotated_image_bgr")
+        if annotated_bgr is not None:
+            _, buffer = cv2.imencode(".jpg", annotated_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+            b64_str = base64.b64encode(buffer).decode("utf-8")
+            annotated_b64 = f"data:image/jpeg;base64,{b64_str}"
+        else:
+            annotated_b64 = ""
+
+        custom_result = {
+            "filename": raw_filename,
+            "is_defective": insp["is_defective"],
+            "decision": insp["decision"],
+            "defect_type": insp["defect_type"],
+            "confidence": insp["confidence"],
+            "defect_area": insp["defect_area"],
+            "defect_area_mm2": insp["defect_area_mm2"],
+            "anomaly_score": insp["anomaly_score"],
+            "severity_score": insp["severity_score"],
+            "severity_category": insp["severity_category"],
+            "recommended_action": insp["recommended_action"],
+            "inference_time_ms": insp["inference_time_ms"],
+            "annotated_image_base64": annotated_b64
+        }
+    except Exception as e:
+        logger.exception("Custom model inspection failed during AI scan: %s", str(e))
+        return jsonify({"error": f"Custom pipeline error: {str(e)}"}), 500
+
+    # 2. Run Multimodal AI Vision Model
+    ai_result = analyze_with_ai(save_path, provider=provider)
+
+    # 3. Assess Agreement
+    agreement = (custom_result["is_defective"] == ai_result["is_defective"])
+
+    # 4. Insert row into Database
+    req_product_id = request.form.get("product_id") or request.form.get("batch_id") or None
+    try:
+        insp_id, assigned_pid = db.add_inspection(
+            filename=raw_filename,
+            is_defective=custom_result["is_defective"],
+            defect_type=custom_result["defect_type"],
+            confidence=custom_result["confidence"],
+            defect_area=custom_result["defect_area"],
+            severity_score=custom_result["severity_score"],
+            severity_category=custom_result["severity_category"],
+            user_id=user_id,
+            product_id=req_product_id
+        )
+    except Exception as e:
+        logger.error("Failed to insert inspection into db: %s", str(e))
+        insp_id = None
+        assigned_pid = req_product_id or f"PROD-{int(time.time())}"
+
+    logger.info(
+        "[AI_DUAL_SCAN] user=%s filename=%s custom_def=%s ai_def=%s match=%s provider=%s product=%s",
+        username, raw_filename, custom_result["is_defective"], ai_result["is_defective"], agreement, provider, assigned_pid
+    )
+
+    return jsonify({
+        "status": "success",
+        "inspection_id": insp_id,
+        "product_id": assigned_pid,
+        "product_history_url": f"/product/{assigned_pid}/history",
+        "qr_code_url": f"/api/product/{assigned_pid}/qr",
+        "provider": provider,
+        "agreement": agreement,
+        "filename": raw_filename,
+        "custom_model": custom_result,
+        "ai_model": ai_result
+    })
+
+
+# -----------------------------------------------------------------------------
+# PDF Inspection Report Routes (Prompt 20)
+# -----------------------------------------------------------------------------
+@app.route("/report/pdf/<int:inspection_id>")
+@login_required
+def download_single_pdf_report(inspection_id: int):
+    """
+    GET /report/pdf/<inspection_id>:
+    Generates and streams single-part PDF inspection QA certificate.
+    """
+    insp_data = db.get_inspection_by_id(inspection_id)
+    if not insp_data:
+        return jsonify({"error": f"Inspection #{inspection_id} not found in database."}), 404
+
+    user = get_current_user()
+    inspector = user.username if user else insp_data.get("inspector_name", "Automated QA")
+
+    annotated_path = None
+    possible_dirs = [
+        os.path.join(app.config["UPLOAD_FOLDER"], "ai_scans"),
+        app.config["UPLOAD_FOLDER"]
+    ]
+    for d in possible_dirs:
+        cand = os.path.join(d, f"annotated_{insp_data['filename']}")
+        if os.path.exists(cand):
+            annotated_path = cand
+            break
+        cand2 = os.path.join(d, insp_data["filename"])
+        if os.path.exists(cand2):
+            annotated_path = cand2
+            break
+
+    try:
+        pdf_bytes = generate_pdf_report(
+            inspection_id=inspection_id,
+            inspection_data=insp_data,
+            annotated_img_path=annotated_path,
+            inspector_username=inspector
+        )
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=inspection_cert_{inspection_id}.pdf"
+            }
+        )
+    except Exception as e:
+        logger.exception("Failed generating PDF report for inspection #%d: %s", inspection_id, str(e))
+        return jsonify({"error": f"PDF report generation error: {str(e)}"}), 500
+
+
+@app.route("/report/pdf/batch/<batch_id>")
+@login_required
+def download_batch_pdf_report(batch_id: str):
+    """
+    GET /report/pdf/batch/<batch_id>:
+    Compiles all inspections from batch upload into a multi-page PDF summary.
+    """
+    if batch_id not in BATCH_REPORTS:
+        return jsonify({"error": f"Batch inspection '{batch_id}' not found."}), 404
+
+    results = BATCH_REPORTS[batch_id].get("results", [])
+    try:
+        pdf_bytes = generate_batch_pdf_report(batch_id, results)
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=batch_inspection_report_{batch_id}.pdf"
+            }
+        )
+    except Exception as e:
+        logger.exception("Failed generating batch PDF for batch '%s': %s", batch_id, str(e))
+        return jsonify({"error": f"Batch PDF generation error: {str(e)}"}), 500
+
+
+# -----------------------------------------------------------------------------
+# Product Traceability & QR Tracking Routes (Prompt 21)
+# -----------------------------------------------------------------------------
+@app.route("/product/<product_id>/history")
+@login_required
+def product_history(product_id: str):
+    """
+    GET /product/<product_id>/history:
+    Renders chronological timeline showing every inspection ever recorded
+    for a specific product or batch unit.
+    """
+    clean_pid = secure_filename(product_id).strip() or product_id.strip()
+    inspections = db.get_inspections_by_product_id(clean_pid)
+    user = get_current_user()
+
+    return render_template(
+        "product_history.html",
+        product_id=clean_pid,
+        inspections=inspections,
+        current_user=user
+    )
+
+
+@app.route("/api/product/<product_id>/history")
+@login_required
+def api_product_history(product_id: str):
+    """
+    GET /api/product/<product_id>/history:
+    JSON API endpoint returning inspection records and lifecycle metrics for a product.
+    """
+    clean_pid = secure_filename(product_id).strip() or product_id.strip()
+    inspections = db.get_inspections_by_product_id(clean_pid)
+    return jsonify({
+        "product_id": clean_pid,
+        "count": len(inspections),
+        "inspections": inspections,
+        "qr_code_url": f"/api/product/{clean_pid}/qr"
+    })
+
+
+@app.route("/api/product/<product_id>/qr")
+def product_qr_code(product_id: str):
+    """
+    GET /api/product/<product_id>/qr:
+    Generates and streams high-contrast PNG QR Code linking directly to the product's
+    traceability timeline for physical product labels and packaging.
+    """
+    clean_pid = secure_filename(product_id).strip() or product_id.strip()
+    target_uri = f"/product/{clean_pid}/history"
+    png_bytes = generate_qr_png_bytes(target_uri, box_size=8, border=4)
+
+    headers = {"Content-Type": "image/png"}
+    if request.args.get("download") == "1":
+        headers["Content-Disposition"] = f"attachment; filename=qr_tag_{clean_pid}.png"
+
+    return Response(png_bytes, mimetype="image/png", headers=headers)
+
+
+# -----------------------------------------------------------------------------
+# In-App Notifications & Alerts API Routes (Prompt 22)
+# -----------------------------------------------------------------------------
+@app.route("/api/notifications")
+@login_required
+def get_notifications():
+    """
+    GET /api/notifications:
+    Returns list of recent in-app alerts and current unread count for navbar bell.
+    """
+    try:
+        limit = int(request.args.get("limit", 25))
+    except ValueError:
+        limit = 25
+
+    notifs = db.get_notifications(limit=limit)
+    unread = db.get_unread_notification_count()
+
+    return jsonify({
+        "status": "success",
+        "unread_count": unread,
+        "notifications": notifs
+    })
+
+
+@app.route("/api/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+def mark_notification_read(notification_id: int):
+    """
+    POST /api/notifications/<id>/read:
+    Marks an individual alert as read.
+    """
+    db.mark_notification_as_read(notification_id)
+    return jsonify({"status": "success", "marked_id": notification_id})
+
+
+@app.route("/api/notifications/read-all", methods=["POST"])
+@login_required
+def mark_all_notifications_read():
+    """
+    POST /api/notifications/read-all:
+    Clears all unread notifications.
+    """
+    db.mark_all_notifications_as_read()
+    return jsonify({"status": "success", "message": "All notifications marked as read."})
+
+
+# -----------------------------------------------------------------------------
+# Admin Settings & No-Code Threshold Tuning (Prompt 23)
+# -----------------------------------------------------------------------------
+@app.route("/admin/settings", methods=["GET", "POST"])
+@admin_required
+def admin_settings():
+    """
+    GET /admin/settings: Renders threshold configuration panel and audit history.
+    POST /admin/settings: Validates and saves updated pipeline parameters in DB.
+    """
+    user = get_current_user()
+    username = user.username if user else "admin"
+
+    if request.method == "POST":
+        allowed_keys = [
+            "anomaly_threshold",
+            "min_defect_area_px",
+            "severity_minor_cutoff",
+            "severity_major_cutoff",
+            "alert_severity_threshold",
+            "alert_rate_window_n",
+            "alert_rate_threshold_pct",
+            "ai_scan_provider",
+            "alerts_enabled"
+        ]
+
+        updated_count = 0
+        for k in allowed_keys:
+            if k in request.form:
+                val = request.form[k].strip()
+                if val:
+                    db.update_setting(k, val, changed_by=username)
+                    updated_count += 1
+
+        flash(f"Successfully saved {updated_count} pipeline parameters! Changes are active immediately.", "success")
+        return redirect(url_for("admin_settings"))
+
+    all_settings = db.get_all_settings()
+    history = db.get_settings_history(limit=50)
+
+    return render_template(
+        "admin_settings.html",
+        settings=all_settings,
+        history=history,
+        current_user=user
+    )
+
+
+@app.route("/admin/settings/reset", methods=["POST"])
+@admin_required
+def admin_settings_reset():
+    """
+    POST /admin/settings/reset:
+    Resets all dynamic pipeline settings to factory defaults.
+    """
+    user = get_current_user()
+    username = user.username if user else "admin"
+    db.reset_settings_to_defaults(changed_by=username)
+    flash("Factory defaults restored for all defect detection thresholds.", "success")
+    return redirect(url_for("admin_settings"))
+
+
+
+# -----------------------------------------------------------------------------
 # Analytics Dashboard API Routes (Prompt 11)
 # -----------------------------------------------------------------------------
 @app.route("/api/dashboard-data")
@@ -545,10 +955,114 @@ def export_csv():
 
 
 # -----------------------------------------------------------------------------
-# System Health Check (Prompt 14)
+# System Health & Version Checks (Prompt 14 & 17)
 # -----------------------------------------------------------------------------
+@app.route("/version")
+def version_endpoint():
+    """
+    GET /version:
+    Returns detailed semantic versioning, model architectures, and commit information (Prompt 17).
+    """
+    return jsonify(get_version_info()), 200
+
+
+@app.route("/api/openapi.json")
+def openapi_spec():
+    """Returns OpenAPI 3.0.0 Specification for industrial inspection endpoints (Prompt 17)."""
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": "Industrial Vision Defect Detection API",
+            "version": "1.4.0",
+            "description": "Production REST API for automated surface defect detection, multimodal AI verification, and QA reporting."
+        },
+        "servers": [{"url": "/", "description": "Active Workstation Host"}],
+        "paths": {
+            "/version": {
+                "get": {
+                    "summary": "Application & Model Version Metadata",
+                    "responses": {"200": {"description": "Version details"}}
+                }
+            },
+            "/health": {
+                "get": {
+                    "summary": "System Health & Diagnostic Check",
+                    "responses": {"200": {"description": "Health status"}}
+                }
+            },
+            "/analyze": {
+                "post": {
+                    "summary": "Execute Defect Detection Pipeline (Multi-part upload)",
+                    "responses": {"200": {"description": "Inspection findings"}}
+                }
+            },
+            "/ai-scan": {
+                "post": {
+                    "summary": "Dual-Engine Multimodal Inspection & Consensus Verification",
+                    "responses": {"200": {"description": "Dual-engine comparison payload"}}
+                }
+            },
+            "/api/dashboard-data": {
+                "get": {
+                    "summary": "Query Analytics KPIs & Historical Timeline",
+                    "responses": {"200": {"description": "Chart.js aggregated metrics"}}
+                }
+            },
+            "/report/pdf/{id}": {
+                "get": {
+                    "summary": "Download Official Signed Inspection QA Certificate (PDF)",
+                    "parameters": [{"name": "id", "in": "path", "required": True, "schema": {"type": "integer"}}],
+                    "responses": {"200": {"description": "Binary PDF stream"}}
+                }
+            },
+            "/report/pdf/batch/{batch_id}": {
+                "get": {
+                    "summary": "Download Multi-Page Batch Inspection Summary (PDF)",
+                    "parameters": [{"name": "batch_id", "in": "path", "required": True, "schema": {"type": "string"}}],
+                    "responses": {"200": {"description": "Binary PDF stream"}}
+                }
+            }
+        }
+    }
+    return jsonify(spec), 200
+
+
+@app.route("/api/docs")
+def swagger_ui():
+    """Interactive Swagger/OpenAPI UI Explorer (Prompt 17)."""
+    html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>API Documentation - Vision Defect Inspection</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #0f172a; }
+    .swagger-ui { filter: invert(88%) hue-rotate(180deg); }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = () => {
+      window.ui = SwaggerUIBundle({
+        url: '/api/openapi.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [SwaggerUIBundle.presets.apis]
+      });
+    };
+  </script>
+</body>
+</html>"""
+    return html, 200, {"Content-Type": "text/html"}
+
+
 @app.route("/health")
 def health():
+
     """
     GET /health:
     Production health check monitoring application status, deep learning models,
@@ -576,8 +1090,9 @@ def health():
 
     health_data = {
         "status": "healthy",
-        "app_name": "Vision-Based Defect Detection Workstation",
-        "version": "1.0.0",
+        "app_name": "Inspectra AI",
+        "tagline": "Ai powered visual inspection",
+        "version": "1.4.0",
         "uptime_seconds": uptime_sec,
         "models": {
             "cae_anomaly_detector": "loaded",
@@ -643,6 +1158,15 @@ def request_entity_too_large(error):
     return render_template("error.html", error_code=413, message="File size exceeds the 10 MB maximum allowed limit."), 413
 
 
+@app.errorhandler(429)
+def ratelimit_handler(error):
+    logger.warning("Rate limit exceeded on %s by %s", request.path, request.remote_addr)
+    return jsonify({
+        "error": "Rate limit exceeded. Maximum 20 requests per minute allowed.",
+        "code": 429
+    }), 429
+
+
 @app.errorhandler(500)
 def internal_server_error(error):
     logger.exception("Internal server error encountered on %s", request.path)
@@ -656,15 +1180,20 @@ def internal_server_error(error):
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
     print("=" * 72)
-    print("  VISION-BASED DEFECT DETECTION — INDUSTRIAL QUALITY SERVER")
-    print("  Version: 1.0.0 (Prompts 0 - 15 Implemented)")
+    print("  INSPECTRA AI — AI POWERED VISUAL INSPECTION WORKSTATION")
+    print("  Version: 1.4.0 (Production Hardened — Prompts 0 to 20 Complete)")
+    print("  Tagline: Ai powered visual inspection")
     print("  Endpoints:")
     print("    - Batch Upload & Inspect:  http://localhost:5000/")
     print("    - Camera Scan (Prompt 12): http://localhost:5000/scan")
+    print("    - Multimodal AI (Prompt 18):http://localhost:5000/ai-scan-view")
     print("    - Analytics (Prompt 11):   http://localhost:5000/dashboard")
     print("    - Live Video (Prompt 10):  http://localhost:5000/live")
+    print("    - API Documentation:       http://localhost:5000/api/docs")
+    print("    - System Version:          http://localhost:5000/version")
     print("    - Health Check (Prompt 14):http://localhost:5000/health")
     print("    - User Login (Prompt 13):  http://localhost:5000/login")
     print("      (Default Admin: admin / admin123 | Operator: operator / operator123)")
     print("=" * 72)
     app.run(host="0.0.0.0", port=5000, debug=False)
+

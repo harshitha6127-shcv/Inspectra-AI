@@ -1,0 +1,67 @@
+# Git & Version Control
+.git
+.gitignore
+
+# Python Bytecode & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+tests/
+
+# Jupyter Notebooks & Checkpoints
+.ipynb_checkpoints
+notebooks/
+
+# Datasets & Large Raw Data
+data/raw/
+*.tar.gz
+*.zip
+
+# Node.js & Frontend Tooling
+node_modules/
+bun.lock
+
+# Logs & Temporary Uploads
+logs/*.log
+uploads/*
+outputs/reports/*.csv
+outputs/reports/*.pdf
+
+# Local IDE & OS metadata
+.DS_Store
+.vscode/
+.idea/
+*.swp

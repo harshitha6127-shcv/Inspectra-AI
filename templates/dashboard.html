@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics Dashboard — Vision-Based Defect Inspection</title>
+  <title>Analytics Dashboard — Inspectra AI</title>
   <link rel="stylesheet" href="/static/style.css">
   <!-- Chart.js via CDN (Prompt 11) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -15,8 +15,8 @@
       <div class="brand">
         <div class="logo-icon">📊</div>
         <div>
-          <h1 class="brand-title">Defect Analytics Dashboard</h1>
-          <p class="brand-subtitle">Database-Backed Quality Telemetry & Yield Metrics</p>
+          <h1 class="brand-title">Inspectra AI <span style="font-weight:normal; font-size: 0.85em; opacity: 0.85;">· Analytics</span></h1>
+          <p class="brand-subtitle">Ai powered visual inspection</p>
         </div>
       </div>
 
@@ -66,6 +66,18 @@
         <div id="kpiAvgSeverity" class="kpi-value text-cyan">-- / 100</div>
         <div class="kpi-subtext">Composite multi-factor impact score</div>
       </div>
+    </section>
+
+    <!-- Product Traceability Lookup Bar (Prompt 21) -->
+    <section class="card" style="padding: 16px 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; border-left: 4px solid var(--accent-cyan);">
+      <div>
+        <h3 style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px;">📦 Product & Batch Traceability (QR / Unit History)</h3>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 0;">Trace every inspection recorded for a specific physical component across its production lifecycle.</p>
+      </div>
+      <form onsubmit="event.preventDefault(); const p=document.getElementById('dashProductSearch').value.trim(); if(p) window.location.href='/product/'+encodeURIComponent(p)+'/history';" style="display: flex; gap: 8px; flex: 1; max-width: 440px; min-width: 260px;">
+        <input type="text" id="dashProductSearch" placeholder="Enter Product ID (e.g. PROD-20260910-8472)" style="flex: 1; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; color: #fff; font-size: 12px; font-family: var(--font-mono);" required />
+        <button type="submit" class="btn btn-primary" style="padding: 8px 16px; font-size: 12px; white-space: nowrap;">Trace Unit &rarr;</button>
+      </form>
     </section>
 
     <!-- Controls Bar: Time Filter & History Actions -->
@@ -172,6 +184,7 @@
           <thead>
             <tr>
               <th>ID</th>
+              <th>Product / Batch ID</th>
               <th>Timestamp</th>
               <th>Filename</th>
               <th>Result</th>
@@ -180,11 +193,12 @@
               <th>Defect Area</th>
               <th>Severity Score</th>
               <th>Severity Tier</th>
+              <th>Report</th>
             </tr>
           </thead>
           <tbody id="inspectionsTableBody">
             <tr>
-              <td colspan="9" class="text-center text-muted py-6">Loading inspection database...</td>
+              <td colspan="11" class="text-center text-muted py-6">Loading inspection database...</td>
             </tr>
           </tbody>
         </table>
@@ -377,9 +391,14 @@
         else if (row.severity_category === 'Major') sevClass = 'sev-major';
         else if (row.severity_category === 'Minor') sevClass = 'sev-minor';
 
+        const pidHtml = row.product_id
+          ? `<a href="/product/${encodeURIComponent(row.product_id)}/history" class="font-mono text-cyan" style="text-decoration:none; font-weight:600;" title="View Unit History Timeline">${row.product_id}</a>`
+          : `<span class="text-muted">—</span>`;
+
         return `
           <tr>
             <td class="font-mono text-muted">#${row.id}</td>
+            <td>${pidHtml}</td>
             <td class="font-mono text-muted text-xs">${row.timestamp}</td>
             <td class="font-semibold">${row.filename}</td>
             <td>${resBadge}</td>
@@ -388,6 +407,11 @@
             <td class="font-mono">${row.defect_area > 0 ? `${row.defect_area} px` : '—'}</td>
             <td class="font-mono font-bold">${row.severity_score}</td>
             <td><span class="sev-pill ${sevClass}">${row.severity_category.toUpperCase()}</span></td>
+            <td>
+              <a href="/report/pdf/${row.id}" target="_blank" class="btn-pdf-download" style="padding: 4px 8px; font-size: 11px;" title="Download PDF Inspection Certificate">
+                PDF
+              </a>
+            </td>
           </tr>
         `;
       }).join('');

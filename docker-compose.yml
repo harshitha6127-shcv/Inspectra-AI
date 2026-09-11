@@ -1,0 +1,77 @@
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # Web Inspection Application Service (Flask + Gunicorn)
+  # ===========================================================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: defect_inspection_web
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-factory-production-secret-key-change-me}
+      - DATABASE_TYPE=${DATABASE_TYPE:-sqlite} # 'sqlite' or 'postgres'
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/inspections.db}
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-10485760} # 10MB
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5000}
+      - RATE_LIMIT=${RATE_LIMIT:-20 per minute}
+      - AI_VISION_PROVIDER=${AI_VISION_PROVIDER:-gemini}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      - inspection_data:/app/data
+      - inspection_uploads:/app/uploads
+      - inspection_outputs:/app/outputs
+      - inspection_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      db:
+        condition: service_started
+        required: false
+
+  # ===========================================================================
+  # Relational Database Service (PostgreSQL 15 - Used if DATABASE_TYPE=postgres)
+  # ===========================================================================
+  db:
+    image: postgres:15-alpine
+    container_name: defect_inspection_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-defect_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-defect_secure_pass_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-defect_detection}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-defect_user} -d ${POSTGRES_DB:-defect_detection}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# =============================================================================
+# Persistent Data Volumes
+# =============================================================================
+volumes:
+  inspection_data:
+    driver: local
+  inspection_uploads:
+    driver: local
+  inspection_outputs:
+    driver: local
+  inspection_logs:
+    driver: local
+  postgres_data:
+    driver: local

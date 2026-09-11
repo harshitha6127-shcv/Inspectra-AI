@@ -117,3 +117,36 @@ python main.py inspect --image path/to/part_image.png --sample_id PART_SERIAL_40
 - **Morphological Noise Cleanup**: Opening removes isolated speckles; closing bridges micro-fractures; enforces minimum area threshold.
 - **Test-Time Augmentation (TTA)**: 3-view voting (Original, Horizontal Flip, Rotated 10°) ensures defect persistence.
 - **Borderline Quarantine Log**: Borderline or conflicted cases are quarantined into `outputs/borderline_review_queue.json` for human QA operator audit.
+
+---
+
+## 🐳 Production Containerization & Docker Compose (Prompt 16)
+
+The project includes a multi-stage production Dockerfile and a multi-container `docker-compose.yml` service definition.
+
+### 1. Run Everything Locally
+To build the container image and launch the inspection server with persistence:
+```bash
+docker compose up --build
+```
+This starts:
+- **`web`**: Python 3.11 slim runtime running production `gunicorn` (4 workers, port 5000)
+- **`db`**: PostgreSQL 15 database service (optional, enabled if `DATABASE_TYPE=postgres`)
+
+Access the workstation at:
+- Web App & Scan: **`http://localhost:5000`**
+- API Documentation: **`http://localhost:5000/api/docs`**
+- Health Telemetry: **`http://localhost:5000/health`**
+
+### 2. Pointing to Production Values via `.env`
+Copy the template and configure your production credentials:
+```bash
+cp .env.example .env
+```
+Key production variables in `.env`:
+- `SECRET_KEY`: Set a cryptographically secure key (e.g. `openssl rand -hex 32`)
+- `DATABASE_TYPE`: Set to `postgres` to use PostgreSQL instead of SQLite
+- `DATABASE_URL`: Set your managed PostgreSQL connection string
+- `GEMINI_API_KEY`: Set for Multimodal AI Vision Scan mode (Prompt 18)
+- `ALLOWED_ORIGINS`: Restrict CORS domains to your enterprise gateway
+

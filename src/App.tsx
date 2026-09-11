@@ -23,10 +23,13 @@ import { DedicatedCameraScan } from "./components/DedicatedCameraScan";
 import { AuthManagement } from "./components/AuthManagement";
 import { SystemHealthAndLogs } from "./components/SystemHealthAndLogs";
 import { AutomatedTestSuite } from "./components/AutomatedTestSuite";
+import { AiVisionScan } from "./components/AiVisionScan";
+import { DeploymentAndProduction } from "./components/DeploymentAndProduction";
+import { Sparkles, Server } from "lucide-react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<
-    "station" | "scan" | "dashboard" | "auth" | "health" | "tests" | "live" | "evaluate" | "pipeline" | "code"
+    "station" | "scan" | "ai_scan" | "dashboard" | "deploy" | "auth" | "health" | "tests" | "pipeline" | "code"
   >("station");
 
   return (
@@ -41,14 +44,14 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-bold text-white tracking-tight">
-                  Vision-Based Defect Detection
+                  Inspectra AI
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800/60">
-                  Full Pipeline · Prompts 0–15
+                  Ai powered visual inspection
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Manufacturing Quality Inspection · OpenCV, PyTorch, Flask, SQLite, Auth & Pytest
+                Ai powered visual inspection · Manufacturing Quality Workstation · OpenCV, PyTorch, Multimodal AI & QA Reporting
               </p>
             </div>
           </div>
@@ -65,6 +68,18 @@ export default function App() {
             >
               <Eye className="w-3.5 h-3.5" />
               <span>Inspection Station</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("ai_scan")}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                activeTab === "ai_scan"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+              <span>AI Vision Scan (P18)</span>
             </button>
 
             <button
@@ -88,7 +103,19 @@ export default function App() {
               }`}
             >
               <Database className="w-3.5 h-3.5" />
-              <span>Dashboard (P11)</span>
+              <span>Dashboard & Reports</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("deploy")}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                activeTab === "deploy"
+                  ? "bg-cyan-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+              }`}
+            >
+              <Server className="w-3.5 h-3.5" />
+              <span>Deploy & Docs (P16-17)</span>
             </button>
 
             <button
@@ -136,7 +163,7 @@ export default function App() {
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Pipeline Deep-Dive</span>
+              <span>Pipeline</span>
             </button>
 
             <button
@@ -157,8 +184,10 @@ export default function App() {
       {/* Main Content Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
         {activeTab === "station" && <InspectionStation />}
+        {activeTab === "ai_scan" && <AiVisionScan />}
         {activeTab === "scan" && <DedicatedCameraScan />}
         {activeTab === "dashboard" && <AnalyticsDashboard />}
+        {activeTab === "deploy" && <DeploymentAndProduction />}
         {activeTab === "auth" && <AuthManagement />}
         {activeTab === "health" && <SystemHealthAndLogs />}
         {activeTab === "tests" && <AutomatedTestSuite />}

@@ -28,6 +28,7 @@ const batchSection = document.getElementById("batchSection");
 const batchSubtitle = document.getElementById("batchSubtitle");
 const batchTableBody = document.getElementById("batchTableBody");
 const downloadReportBtn = document.getElementById("downloadReportBtn");
+const downloadPdfReportBtn = document.getElementById("downloadPdfReportBtn");
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 const ALLOWED_EXTENSIONS = ["jpg", "jpeg", "png", "bmp"];
@@ -181,7 +182,8 @@ function renderResults(data) {
   // If batch mode (>1 items), populate batch table
   if (results.length > 1) {
     batchSubtitle.textContent = `Inspected ${results.length} parts in batch #${data.batch_id}`;
-    downloadReportBtn.href = data.report_url || `/report/${data.batch_id}`;
+    if (downloadReportBtn) downloadReportBtn.href = data.report_url || `/report/${data.batch_id}`;
+    if (downloadPdfReportBtn) downloadPdfReportBtn.href = `/report/pdf/batch/${data.batch_id}`;
     batchTableBody.innerHTML = "";
 
     results.forEach((item, idx) => {

@@ -54,12 +54,25 @@ RECOMMENDED_ACTIONS = {
 }
 
 
+def get_dynamic_thresholds() -> Tuple[float, float]:
+    """Dynamically fetches severity cutoffs from database settings if available (Prompt 23)."""
+    try:
+        from models import db
+        minor = float(db.get_setting("severity_minor_cutoff", THRESH_MINOR_MAX))
+        major = float(db.get_setting("severity_major_cutoff", THRESH_MAJOR_MAX))
+        return minor, major
+    except Exception:
+        return THRESH_MINOR_MAX, THRESH_MAJOR_MAX
+
+
 def compute_severity_score(
     defect_type: str,
     confidence: float,
     defect_area_px: float,
     total_area_px: float = 65536.0,  # default 256x256
-    custom_weights: Optional[Dict[str, float]] = None
+    custom_weights: Optional[Dict[str, float]] = None,
+    minor_cutoff: Optional[float] = None,
+    major_cutoff: Optional[float] = None
 ) -> Tuple[float, str, str]:
     """
     Computes a normalized defect severity score from 0 to 100.
@@ -94,10 +107,15 @@ def compute_severity_score(
 
     score = float(max(0.0, min(100.0, round(score, 1))))
 
+    # Dynamic cutoffs from DB (Prompt 23)
+    dyn_minor, dyn_major = get_dynamic_thresholds()
+    eff_minor = minor_cutoff if minor_cutoff is not None else dyn_minor
+    eff_major = major_cutoff if major_cutoff is not None else dyn_major
+
     # Map to category
-    if score < THRESH_MINOR_MAX:
+    if score < eff_minor:
         category = "Minor"
-    elif score <= THRESH_MAJOR_MAX:
+    elif score <= eff_major:
         category = "Major"
     else:
         category = "Critical"

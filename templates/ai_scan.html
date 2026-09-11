@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}AI Multimodal Scan Mode{% endblock %}
+
+{% block content %}
+<div class="content-container">
+  <div class="page-header">
+    <div>
+      <h2 class="page-title">&#10024; Inspectra AI — Multimodal Vision Verification</h2>
+      <p class="page-subtitle">Ai powered visual inspection &bull; Dual-engine arbitration comparing custom edge models against multimodal AI (Gemini / GPT-4o / Claude)</p>
+    </div>
+    <div class="header-actions">
+      <label for="ai-provider-select" style="font-size: 12px; color: var(--text-muted); margin-right: 6px;">AI Provider:</label>
+      <select id="ai-provider-select" class="filter-select">
+        <option value="gemini" selected>Google Gemini 2.5 Flash</option>
+        <option value="openai">OpenAI GPT-4o</option>
+        <option value="claude">Anthropic Claude 3.5 Sonnet</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Upload Area -->
+  <div class="card" style="margin-bottom: 24px;">
+    <div class="drop-zone" id="ai-drop-zone">
+      <input type="file" id="ai-file-input" accept=".jpg,.jpeg,.png,.bmp" style="display: none;" />
+      <div class="drop-zone-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </div>
+      <p class="drop-text">Drag & drop an industrial part image, or <span class="browse-link" onclick="document.getElementById('ai-file-input').click()">browse file</span></p>
+      <p class="drop-hint">Supported: PNG, JPG, BMP &bull; Analyzed simultaneously by Custom ResNet+CAE and AI Vision</p>
+    </div>
+    
+    <div id="ai-preview-strip" style="display: none; margin-top: 16px; align-items: center; justify-content: space-between; padding: 12px; background: var(--bg-main); border-radius: 8px; border: 1px solid var(--border-color);">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <img id="selected-img-preview" src="" alt="Selected Preview" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border-color);" />
+        <div>
+          <p id="selected-filename" style="font-weight: 600; font-size: 13px;"></p>
+          <p id="selected-filesize" style="font-size: 11px; color: var(--text-muted);"></p>
+        </div>
+      </div>
+      <button id="run-ai-scan-btn" class="btn btn-primary" style="background: linear-gradient(135deg, #06b6d4, #8b5cf6); border: none;">
+        <span>Analyze with Dual Engines</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="ai-loading-state" class="card text-center" style="display: none; padding: 40px;">
+    <div class="spinner" style="margin: 0 auto 16px auto; width: 36px; height: 36px; border-width: 3px; border-top-color: #8b5cf6;"></div>
+    <h3 style="font-size: 16px; font-weight: 600;">Running Dual-Engine Pipeline...</h3>
+    <p style="color: var(--text-muted); font-size: 13px; margin-top: 6px;">Extracting Grad-CAM heatmaps while streaming multimodal visual reasoning from cloud provider.</p>
+  </div>
+
+  <!-- Comparison Results View -->
+  <div id="ai-results-container" style="display: none;">
+    <!-- Agreement Banner -->
+    <div id="agreement-banner" class="agreement-banner">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span id="agreement-icon" style="font-size: 22px;">&#10004;</span>
+        <div>
+          <span id="agreement-title" style="font-size: 15px; font-weight: 700;">Engine Consensus Agreement</span>
+          <p id="agreement-sub" style="font-size: 12px; font-weight: 400; opacity: 0.9; margin-top: 2px;">Both engines confirm the identical defect decision.</p>
+        </div>
+      </div>
+      <div id="agreement-stats" style="font-size: 12px; opacity: 0.85;"></div>
+    </div>
+
+    <!-- Dual Cards Grid -->
+    <div class="ai-comparison-grid">
+      <!-- Card 1: Custom Model -->
+      <div class="model-comparison-card card-custom">
+        <div class="model-card-header">
+          <span class="model-badge badge-custom">Custom Edge Model</span>
+          <span id="custom-latency" style="font-size: 11px; color: var(--text-muted);">Latency: -- ms</span>
+        </div>
+        <div>
+          <h4 style="font-size: 17px; font-weight: 700; margin-bottom: 4px;" id="custom-status-title">CONFORMING (PASS)</h4>
+          <p style="font-size: 12px; color: var(--text-muted);">Architecture: ResNet-18 + CAE + Grad-CAM</p>
+        </div>
+        <div style="background: var(--bg-main); padding: 12px; border-radius: 8px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted);">Defect Class:</span>
+            <strong id="custom-defect-type">Normal</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted);">Confidence:</span>
+            <strong id="custom-confidence">99.4%</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted);">Severity Score:</span>
+            <strong id="custom-severity">0.0 (None)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Defect Area:</span>
+            <strong id="custom-area">0 px (0.00 mm&sup2;)</strong>
+          </div>
+        </div>
+        <div style="text-align: center; margin-top: 6px;">
+          <img id="custom-overlay-img" src="" alt="Grad-CAM Overlay" style="width: 100%; max-height: 220px; object-fit: contain; border-radius: 6px; background: #020617; border: 1px solid var(--border-color); display: none;" />
+        </div>
+      </div>
+
+      <!-- Card 2: Multimodal AI Model -->
+      <div class="model-comparison-card card-ai">
+        <div class="model-card-header">
+          <span class="model-badge badge-ai" id="ai-model-badge">Gemini 2.5 Flash</span>
+          <span id="ai-latency" style="font-size: 11px; color: var(--text-muted);">Latency: -- ms</span>
+        </div>
+        <div>
+          <h4 style="font-size: 17px; font-weight: 700; margin-bottom: 4px;" id="ai-status-title">DEFECT DETECTED</h4>
+          <p style="font-size: 12px; color: var(--text-muted);">Multimodal Quality Inspector Agent</p>
+        </div>
+        <div style="background: var(--bg-main); padding: 12px; border-radius: 8px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted);">Defect Type:</span>
+            <strong id="ai-defect-type">Crack</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span style="color: var(--text-muted);">Confidence Tier:</span>
+            <strong id="ai-confidence" style="text-transform: capitalize;">High</strong>
+          </div>
+          <div style="margin-top: 10px;">
+            <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px;">LOCALIZATION DESCRIPTION:</span>
+            <p id="ai-localization-desc" style="font-size: 12px; line-height: 1.4; color: var(--text-main); font-style: italic; background: rgba(139, 92, 246, 0.08); padding: 8px; border-radius: 6px; border-left: 3px solid #8b5cf6;">--</p>
+          </div>
+          <div style="margin-top: 10px;">
+            <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px;">ENGINE REASONING:</span>
+            <p id="ai-reasoning-text" style="font-size: 12px; line-height: 1.4; color: var(--text-muted);">--</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions & PDF Download Button (Prompt 20) -->
+    <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+      <a id="ai-pdf-download-btn" href="#" class="btn-pdf-download">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        Download Signed QA Certificate (PDF)
+      </a>
+      <button class="btn btn-outline-cyan" onclick="document.getElementById('ai-file-input').click()">
+        Inspect Another Part
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const dropZone = document.getElementById('ai-drop-zone');
+  const fileInput = document.getElementById('ai-file-input');
+  const previewStrip = document.getElementById('ai-preview-strip');
+  const imgPreview = document.getElementById('selected-img-preview');
+  const filenameEl = document.getElementById('selected-filename');
+  const filesizeEl = document.getElementById('selected-filesize');
+  const runBtn = document.getElementById('run-ai-scan-btn');
+  const loadingState = document.getElementById('ai-loading-state');
+  const resultsContainer = document.getElementById('ai-results-container');
+  let selectedFile = null;
+
+  ['dragenter', 'dragover'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--accent-cyan)';
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(eventName => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--border-color)';
+    });
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFile(e.target.files[0]);
+    }
+  });
+
+  function handleFile(file) {
+    selectedFile = file;
+    filenameEl.innerText = file.name;
+    filesizeEl.innerText = (file.size / 1024).toFixed(1) + ' KB';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      imgPreview.src = e.target.result;
+      previewStrip.style.display = 'flex';
+      resultsContainer.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+    window.showToast('Image staged for dual-engine inspection.', 'info', 2500);
+  }
+
+  runBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+
+    const provider = document.getElementById('ai-provider-select').value;
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+    formData.append('provider', provider);
+
+    previewStrip.style.display = 'none';
+    loadingState.style.display = 'block';
+    resultsContainer.style.display = 'none';
+
+    try {
+      const response = await fetch('/ai-scan', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      loadingState.style.display = 'none';
+
+      if (!response.ok) {
+        window.showToast(data.error || 'Dual inspection failed.', 'error');
+        previewStrip.style.display = 'flex';
+        return;
+      }
+
+      renderComparison(data);
+      window.showToast('Dual-engine inspection complete!', 'success', 3000);
+    } catch (err) {
+      loadingState.style.display = 'none';
+      previewStrip.style.display = 'flex';
+      window.showToast('Network error during AI Scan: ' + err.message, 'error');
+    }
+  });
+
+  function renderComparison(data) {
+    const custom = data.custom_model;
+    const ai = data.ai_model;
+    const isMatch = data.agreement;
+
+    // Agreement Banner
+    const banner = document.getElementById('agreement-banner');
+    const icon = document.getElementById('agreement-icon');
+    const title = document.getElementById('agreement-title');
+    const sub = document.getElementById('agreement-sub');
+    const stats = document.getElementById('agreement-stats');
+
+    if (isMatch) {
+      banner.className = 'agreement-banner agreement-match';
+      icon.innerHTML = '&#10004;';
+      title.innerText = 'Engine Consensus Agreement';
+      sub.innerText = `Both the custom model and ${data.provider.toUpperCase()} agree on the part disposition.`;
+    } else {
+      banner.className = 'agreement-banner agreement-mismatch';
+      icon.innerHTML = '&#9888;';
+      title.innerText = 'Engine Decision Divergence (Audit Required)';
+      sub.innerText = 'Custom model and multimodal AI reached different defect conclusions.';
+    }
+    stats.innerText = `Combined inference time: ${(custom.inference_time_ms + ai.latency_ms).toFixed(0)}ms`;
+
+    // Custom Card
+    document.getElementById('custom-latency').innerText = `Latency: ${custom.inference_time_ms.toFixed(1)} ms`;
+    const cTitle = document.getElementById('custom-status-title');
+    cTitle.innerText = custom.is_defective ? 'DEFECT DETECTED' : 'CONFORMING (PASS)';
+    cTitle.style.color = custom.is_defective ? 'var(--accent-rose)' : 'var(--accent-emerald)';
+    document.getElementById('custom-defect-type').innerText = custom.defect_type.replace('_', ' ').toUpperCase();
+    document.getElementById('custom-confidence').innerText = (custom.confidence * 100).toFixed(1) + '%';
+    document.getElementById('custom-severity').innerText = `${custom.severity_score.toFixed(1)} (${custom.severity_category})`;
+    document.getElementById('custom-area').innerText = `${custom.defect_area} px (${custom.defect_area_mm2.toFixed(2)} mm²)`;
+
+    const cImg = document.getElementById('custom-overlay-img');
+    if (custom.annotated_image_base64) {
+      cImg.src = custom.annotated_image_base64;
+      cImg.style.display = 'block';
+    } else {
+      cImg.style.display = 'none';
+    }
+
+    // AI Model Card
+    document.getElementById('ai-model-badge').innerText = data.provider.toUpperCase() + ' Vision';
+    document.getElementById('ai-latency').innerText = `Latency: ${ai.latency_ms.toFixed(1)} ms`;
+    const aTitle = document.getElementById('ai-status-title');
+    if (ai.status === 'error') {
+      aTitle.innerText = 'AI SCAN UNAVAILABLE';
+      aTitle.style.color = 'var(--accent-amber)';
+      document.getElementById('ai-defect-type').innerText = 'N/A';
+      document.getElementById('ai-confidence').innerText = 'N/A';
+      document.getElementById('ai-localization-desc').innerText = ai.error || 'Check API key configuration';
+      document.getElementById('ai-reasoning-text').innerText = ai.reasoning || '';
+    } else {
+      aTitle.innerText = ai.is_defective ? 'DEFECT DETECTED' : 'CONFORMING (PASS)';
+      aTitle.style.color = ai.is_defective ? 'var(--accent-rose)' : 'var(--accent-emerald)';
+      document.getElementById('ai-defect-type').innerText = ai.defect_type.replace('_', ' ').toUpperCase();
+      document.getElementById('ai-confidence').innerText = ai.confidence;
+      document.getElementById('ai-localization-desc').innerText = ai.description;
+      document.getElementById('ai-reasoning-text').innerText = ai.reasoning;
+    }
+
+    // PDF Download URL
+    const pdfBtn = document.getElementById('ai-pdf-download-btn');
+    if (data.inspection_id) {
+      pdfBtn.href = `/report/pdf/${data.inspection_id}`;
+      pdfBtn.style.display = 'inline-flex';
+    } else {
+      pdfBtn.style.display = 'none';
+    }
+
+    resultsContainer.style.display = 'block';
+  }
+</script>
+{% endblock %}

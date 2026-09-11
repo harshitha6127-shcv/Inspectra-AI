@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dedicated Camera Scan — Vision-Based Defect Inspection</title>
+  <title>Dedicated Camera Scan — Inspectra AI</title>
   <link rel="stylesheet" href="/static/style.css">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 <body>
   <!-- Header Bar -->
@@ -13,8 +14,8 @@
       <div class="brand">
         <div class="logo-icon">📷</div>
         <div>
-          <h1 class="brand-title">Dedicated Camera Scan</h1>
-          <p class="brand-subtitle">High-Speed Optical Part Capture & Automatic Quality Analysis</p>
+          <h1 class="brand-title">Inspectra AI <span style="font-weight:normal; font-size: 0.85em; opacity: 0.85;">· Camera Scan</span></h1>
+          <p class="brand-subtitle">Ai powered visual inspection</p>
         </div>
       </div>
 
@@ -64,6 +65,32 @@
             <option value="">Detecting video devices...</option>
           </select>
         </div>
+      </div>
+
+      <!-- Product / Batch ID Traceability Input (Prompt 21) -->
+      <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px;">
+          <span style="font-size: 18px;">📦</span>
+          <div style="flex: 1;">
+            <label for="scanProductId" style="display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px;">
+              Unit / Batch ID Traceability:
+            </label>
+            <input type="text" id="scanProductId" placeholder="e.g. BATCH-9402 or PROD-2026-01 (Optional — auto-generated if blank)" style="width: 100%; padding: 6px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; color: #fff; font-family: var(--font-mono); font-size: 12px;" />
+          </div>
+        </div>
+
+        <button type="button" id="qrScannerToggleBtn" onclick="toggleQrReaderModal()" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; display: flex; align-items: center; gap: 6px;">
+          <span>📷</span> Scan Physical QR Label
+        </button>
+      </div>
+
+      <!-- QR Scanner Reader Modal / Reader Region -->
+      <div id="qrReaderContainer" class="card hidden" style="margin-bottom: 16px; padding: 16px; border: 1px dashed var(--accent-cyan);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <strong style="font-size: 12px; color: var(--accent-cyan);">Scan Product QR Tag via Optical Sensor:</strong>
+          <button type="button" onclick="stopQrReader()" class="btn btn-sm btn-secondary">&times; Close Scanner</button>
+        </div>
+        <div id="qr-reader" style="width: 100%; max-width: 380px; margin: 0 auto;"></div>
       </div>
 
       <!-- Video & Snapshot Stage -->
@@ -168,6 +195,30 @@
           <div class="metric-row">
             <span class="metric-label">Inference Latency:</span>
             <span id="scanInferenceLatency" class="metric-value font-mono text-emerald">-- ms</span>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">Unit / Batch ID:</span>
+            <span id="scanResultPid" class="metric-value font-mono text-cyan">--</span>
+          </div>
+
+          <!-- Traceability Tag & QR Action (Prompt 21) -->
+          <div id="scanQrBlock" style="margin-top: 10px; padding: 12px; background: var(--bg-input); border-radius: 8px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <img id="scanResultQrImg" src="" alt="Unit QR Tag" style="width: 50px; height: 50px; background: #fff; padding: 3px; border-radius: 4px; display: none;" />
+              <div>
+                <div style="font-size: 11px; font-weight: 700; color: #fff;">Physical QR Traceability Tag</div>
+                <div style="font-size: 10px; color: var(--text-muted);">Affix to physical part for scanning</div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <a id="scanResultQrDownload" href="#" class="btn btn-sm btn-secondary" style="font-size: 11px; text-decoration: none; padding: 4px 8px; text-align: center;">
+                ⬇️ Download QR (PNG)
+              </a>
+              <a id="scanResultTimelineLink" href="#" class="btn btn-sm btn-primary" style="font-size: 11px; text-decoration: none; padding: 4px 8px; text-align: center;">
+                ⏱️ Unit History &rarr;
+              </a>
+            </div>
           </div>
 
           <div class="mt-4 pt-3 border-t border-slate-800">
@@ -303,6 +354,10 @@
 
       const formData = new FormData();
       formData.append('image', capturedBlob, `camera_scan_${Date.now()}.jpg`);
+      const customPid = document.getElementById('scanProductId').value.trim();
+      if (customPid) {
+        formData.append('product_id', customPid);
+      }
 
       try {
         const response = await fetch('/analyze', {
@@ -351,6 +406,17 @@
       document.getElementById('scanDefectArea').textContent = `${res.defect_area_mm2} mm² (${res.defect_area} px)`;
       document.getElementById('scanInferenceLatency').textContent = `${res.inference_time_ms} ms`;
 
+      if (res.product_id) {
+        document.getElementById('scanResultPid').innerHTML = `<a href="/product/${encodeURIComponent(res.product_id)}/history" class="text-cyan font-bold" style="text-decoration:none;">${res.product_id}</a>`;
+        const qrImg = document.getElementById('scanResultQrImg');
+        qrImg.src = `/api/product/${encodeURIComponent(res.product_id)}/qr`;
+        qrImg.style.display = 'block';
+        document.getElementById('scanResultQrDownload').href = `/api/product/${encodeURIComponent(res.product_id)}/qr?download=1`;
+        document.getElementById('scanResultTimelineLink').href = `/product/${encodeURIComponent(res.product_id)}/history`;
+      } else {
+        document.getElementById('scanResultPid').textContent = '—';
+      }
+
       if (res.annotated_image_base64) {
         document.getElementById('scanAnnotatedImg').src = res.annotated_image_base64;
       } else {
@@ -359,6 +425,51 @@
 
       document.getElementById('scanResultCard').classList.remove('hidden');
       document.getElementById('scanResultCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // QR Barcode Scanner modal handling (Prompt 21)
+    let html5QrCode = null;
+    function toggleQrReaderModal() {
+      const container = document.getElementById('qrReaderContainer');
+      if (container.classList.contains('hidden')) {
+        container.classList.remove('hidden');
+        startQrReader();
+      } else {
+        stopQrReader();
+      }
+    }
+
+    function startQrReader() {
+      if (typeof Html5Qrcode === 'undefined') {
+        alert('QR code scanner library is loading, please try again in a moment.');
+        return;
+      }
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+      }
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+          document.getElementById('scanProductId').value = decodedText.trim();
+          stopQrReader();
+          if (window.showToast) window.showToast(`Scanned Tag: ${decodedText.trim()}`, 'success');
+        },
+        (errorMessage) => {}
+      ).catch(err => {
+        console.warn('QR camera start failed:', err);
+      });
+    }
+
+    function stopQrReader() {
+      const container = document.getElementById('qrReaderContainer');
+      container.classList.add('hidden');
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          html5QrCode = null;
+        }).catch(e => { html5QrCode = null; });
+      }
     }
 
     // 7. Reset and Scan Another

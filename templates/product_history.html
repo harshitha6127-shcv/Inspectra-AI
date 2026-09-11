@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Traceability Timeline — {{ product_id }} — Inspectra AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .timeline-container {
+      position: relative;
+      margin: 32px 0;
+      padding-left: 36px;
+    }
+    .timeline-container::before {
+      content: '';
+      position: absolute;
+      left: 14px;
+      top: 10px;
+      bottom: 10px;
+      width: 2px;
+      background: #334155;
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 28px;
+      transition: transform 0.2s ease;
+    }
+    .timeline-item:hover {
+      transform: translateX(4px);
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -36px;
+      top: 16px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.9);
+      z-index: 2;
+    }
+    .timeline-dot.pass { background: #10b981; color: #022c22; }
+    .timeline-dot.minor { background: #06b6d4; color: #083344; }
+    .timeline-dot.major { background: #f59e0b; color: #451a03; }
+    .timeline-dot.critical { background: #ef4444; color: #450a0a; }
+    .qr-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+    }
+    .qr-image-wrapper {
+      padding: 12px;
+      background: #ffffff;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: inline-block;
+    }
+    @media print {
+      body * { visibility: hidden; }
+      #printable-tag, #printable-tag * { visibility: visible; }
+      #printable-tag {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        color: #000 !important;
+        background: #fff !important;
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">🔍</div>
+        <div>
+          <h1 class="brand-title">Inspectra AI <span style="font-weight:normal; font-size: 0.85em; opacity: 0.85;">· Traceability</span></h1>
+          <p class="brand-subtitle">Ai powered visual inspection</p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Batch Upload</a>
+        <a href="/scan" class="nav-btn">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn">Analytics</a>
+        <a href="/live" class="nav-btn">Live Stream</a>
+        {% if current_user and current_user.role == 'admin' %}
+        <a href="/admin/settings" class="nav-btn">Settings</a>
+        {% endif %}
+      </nav>
+
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Operator: <strong>{{ current_user.username }}</strong>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 1100px; margin: 24px auto; padding: 0 16px;">
+    <!-- Top Search & Quick Jump Bar -->
+    <div class="card" style="padding: 16px 20px; margin-bottom: 24px;">
+      <form action="" method="GET" onsubmit="event.preventDefault(); window.location.href='/product/' + encodeURIComponent(document.getElementById('pidInput').value.trim()) + '/history';" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <label for="pidInput" style="font-weight: 600; font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+          <span>📦</span> Search Unit / Batch ID:
+        </label>
+        <input type="text" id="pidInput" value="{{ product_id }}" placeholder="e.g. PROD-20260910-8472 or BATCH-41" style="flex: 1; min-width: 240px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; color: #fff; font-family: var(--font-mono); font-size: 13px;" required />
+        <button type="submit" class="btn btn-primary" style="padding: 8px 18px;">Search History</button>
+        <a href="/dashboard" class="btn btn-secondary" style="padding: 8px 14px; text-decoration: none;">Back to Dashboard</a>
+      </form>
+    </div>
+
+    <!-- Product Header Card -->
+    <div class="card" style="padding: 24px; margin-bottom: 24px; border-left: 4px solid var(--accent-cyan);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-cyan); font-weight: 700;">Traceability Dossier</span>
+          <h2 style="font-size: 24px; font-weight: 700; color: #fff; font-family: var(--font-mono); margin: 4px 0;">{{ product_id }}</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">
+            Recorded Inspections: <strong style="color: #fff;">{{ inspections|length }}</strong> · 
+            Latest Inspection: <strong style="color: #fff;">{{ inspections[-1].timestamp if inspections else 'Never' }}</strong>
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button onclick="window.print()" class="btn btn-secondary" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+            <span>🖨️</span> Print QR Inspection Tag
+          </button>
+          <a href="/api/product/{{ product_id }}/qr?download=1" class="btn btn-primary" style="font-size: 12px; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+            <span>⬇️</span> Download QR Label (PNG)
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Timeline + QR Badge -->
+    <div style="display: grid; grid-template-columns: 1fr 320px; gap: 24px;" class="traceability-grid">
+      <!-- Left Column: Chronological Timeline View -->
+      <div>
+        <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+          <span>⏱️</span> Quality Life-Cycle Timeline
+        </h3>
+
+        {% if inspections %}
+        <div class="timeline-container">
+          {% for insp in inspections %}
+          <div class="timeline-item">
+            {% if not insp.is_defective %}
+            <div class="timeline-dot pass" title="Pass / Conforming">✓</div>
+            {% elif insp.severity_category == 'Minor' %}
+            <div class="timeline-dot minor" title="Minor Flaw">!</div>
+            {% elif insp.severity_category == 'Major' %}
+            <div class="timeline-dot major" title="Major Defect">⚠</div>
+            {% else %}
+            <div class="timeline-dot critical" title="Critical Failure">✕</div>
+            {% endif %}
+
+            <div class="card" style="padding: 18px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                <div>
+                  <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">{{ insp.timestamp }}</span>
+                  <h4 style="font-size: 15px; font-weight: 600; margin-top: 2px;">
+                    {% if not insp.is_defective %}
+                    <span style="color: var(--accent-emerald);">PASS (Conforming Part)</span>
+                    {% else %}
+                    <span style="color: var(--accent-rose);">DEFECTIVE: {{ insp.defect_type|replace('_', ' ')|title }}</span>
+                    {% endif %}
+                  </h4>
+                </div>
+                <div>
+                  <span class="badge badge-{{ insp.severity_category|lower }}" style="padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700;">
+                    {{ insp.severity_category|upper }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Metadata Metrics -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: var(--bg-input); padding: 10px 12px; border-radius: 6px; margin: 12px 0; font-size: 12px;">
+                <div>
+                  <div style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Confidence</div>
+                  <div style="font-weight: 600; font-family: var(--font-mono);">{{ "%.1f"|format(insp.confidence * 100) }}%</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Defect Area</div>
+                  <div style="font-weight: 600; font-family: var(--font-mono);">{{ "%.1f"|format(insp.defect_area) }} px</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Severity Score</div>
+                  <div style="font-weight: 600; font-family: var(--font-mono);">{{ "%.1f"|format(insp.severity_score) }} / 100</div>
+                </div>
+                <div>
+                  <div style="color: var(--text-muted); font-size: 10px; text-transform: uppercase;">Inspector</div>
+                  <div style="font-weight: 600;">{{ insp.inspector_name or 'Automated QA' }}</div>
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">File: {{ insp.filename }}</span>
+                <a href="/report/pdf/{{ insp.id }}" class="btn btn-sm btn-secondary" style="text-decoration: none; font-size: 11px; padding: 4px 10px;">
+                  📄 Download QA PDF Certificate
+                </a>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="card" style="padding: 40px 20px; text-align: center; color: var(--text-muted);">
+          <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
+          <h4>No inspection records found for product ID "{{ product_id }}"</h4>
+          <p style="font-size: 12px; margin-top: 4px;">Run an inspection with this product ID in the camera scan or batch upload station to begin tracking.</p>
+          <div style="margin-top: 16px;">
+            <a href="/scan" class="btn btn-primary" style="text-decoration: none; font-size: 12px;">Go to Camera Scan &rarr;</a>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Right Column: Physical Traceability QR Tag -->
+      <div>
+        <div class="card qr-card" id="printable-tag">
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 6px; font-weight: 600;">
+            Physical Traceability Tag
+          </div>
+          <h4 style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 14px; font-family: var(--font-mono);">
+            {{ product_id }}
+          </h4>
+
+          <!-- Live Generated QR Image -->
+          <div class="qr-image-wrapper">
+            <img src="/api/product/{{ product_id }}/qr" alt="QR Code for {{ product_id }}" style="width: 180px; height: 180px; display: block;" id="qrTagImg" />
+          </div>
+
+          <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4; margin-bottom: 16px;">
+            Scan with any optical barcode scanner or mobile device camera to instantly view complete inspection lineage.
+          </p>
+
+          <div style="width: 100%; border-top: 1px solid var(--border-color); padding-top: 14px; font-size: 11px; text-align: left; line-height: 1.6;">
+            <div><strong>System:</strong> Inspectra AI Visual QA</div>
+            <div><strong>Batch ID:</strong> {{ product_id }}</div>
+            <div><strong>Cert Standard:</strong> ISO-9001 / IPC-A-610</div>
+            <div><strong>Verification URI:</strong> <span style="font-family: var(--font-mono); word-break: break-all;">/product/{{ product_id }}/history</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

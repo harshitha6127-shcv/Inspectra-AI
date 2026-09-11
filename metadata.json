@@ -1,6 +1,6 @@
 {
-  "name": "Vision-Based Defect Detection",
-  "description": "Industrial manufacturing quality inspection system featuring OpenCV preprocessing, autoencoder anomaly detection, multi-class defect classification, Grad-CAM localization, and refinement.",
+  "name": "Inspectra AI",
+  "description": "Ai powered visual inspection — automated industrial quality inspection system featuring OpenCV preprocessing, autoencoder anomaly detection, multi-class defect classification, Grad-CAM localization, and multimodal AI verification.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Settings — Inspectra AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 860px) {
+      .settings-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .setting-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .setting-card:hover {
+      border-color: var(--accent-cyan);
+    }
+    .setting-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .setting-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .setting-val-badge {
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    .setting-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.4;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .slider-input {
+      flex: 1;
+      height: 6px;
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+    }
+    .spectrum-bar {
+      height: 16px;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #10b981 0%, #06b6d4 30%, #f59e0b 70%, #ef4444 100%);
+      margin: 16px 0 8px 0;
+      position: relative;
+    }
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .audit-table th, .audit-table td {
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .audit-table th {
+      background: var(--bg-input);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    .audit-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon">⚙️</div>
+        <div>
+          <h1 class="brand-title">Inspectra AI <span style="font-weight:normal; font-size: 0.85em; opacity: 0.85;">· Admin Settings</span></h1>
+          <p class="brand-subtitle">Dynamic No-Code Threshold Tuning & Inference Control</p>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="/" class="nav-btn">Batch Upload</a>
+        <a href="/scan" class="nav-btn">Camera Scan</a>
+        <a href="/dashboard" class="nav-btn">Analytics</a>
+        <a href="/live" class="nav-btn">Live Stream</a>
+        <a href="/admin/settings" class="nav-btn active">Settings</a>
+      </nav>
+
+      {% if current_user %}
+      <div class="user-auth-badge">
+        <span class="user-info">
+          Admin: <strong>{{ current_user.username }}</strong>
+          <span class="role-pill role-admin">ADMIN</span>
+        </span>
+        <a href="/logout" class="btn-logout">Logout</a>
+      </div>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container" style="max-width: 1150px; margin: 24px auto; padding: 0 16px;">
+    <!-- Flash Notifications -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="background: {% if category == 'success' %}#064e3b{% else %}#7f1d1d{% endif %}; border: 1px solid {% if category == 'success' %}#10b981{% else %}#ef4444{% endif %}; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #fff;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Top Banner with Quick Presets -->
+    <div class="card" style="padding: 22px; margin-bottom: 24px; border-left: 4px solid var(--accent-emerald);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-emerald); font-weight: 700;">Inference Pipeline Controls</span>
+          <h2 style="font-size: 20px; font-weight: 700; color: #fff; margin: 4px 0;">No-Code Dynamic Threshold Tuning (Prompt 23)</h2>
+          <p style="font-size: 13px; color: var(--text-muted);">
+            Changes apply instantly to the live inference engine without needing a server restart.
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" onclick="applyPreset('strict')" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">
+            🎯 Strict (High Precision)
+          </button>
+          <button type="button" onclick="applyPreset('standard')" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">
+            ⚖️ Standard (Balanced)
+          </button>
+          <button type="button" onclick="applyPreset('tolerant')" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">
+            🏭 Tolerant (High Yield)
+          </button>
+          <form method="POST" action="/admin/settings/reset" style="display: inline;" onsubmit="return confirm('Reset all settings to baseline defaults?');">
+            <button type="submit" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px; color: #f87171;">
+              🔄 Factory Reset
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Threshold Adjustment Form -->
+    <form method="POST" action="/admin/settings" id="settingsForm">
+      <div class="settings-grid">
+        <!-- 1. Anomaly Threshold -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Autoencoder Anomaly Cutoff</span>
+            <span id="badge_anomaly_threshold" class="setting-val-badge">{{ settings.get('anomaly_threshold', '0.035') }}</span>
+          </div>
+          <p class="setting-desc">Reconstruction error threshold above which a part is flagged as an anomaly. Lower values catch micro-scratches; higher values reduce false rejects on rough textures.</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">0.005</span>
+            <input type="range" name="anomaly_threshold" id="slider_anomaly_threshold"
+                   min="0.005" max="0.200" step="0.005"
+                   value="{{ settings.get('anomaly_threshold', '0.035') }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_anomaly_threshold').innerText = parseFloat(this.value).toFixed(3);" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">0.200</span>
+          </div>
+        </div>
+
+        <!-- 2. Min Defect Area (Noise rejection) -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Min Defect Area Filter</span>
+            <span id="badge_min_defect_area_px" class="setting-val-badge">{{ settings.get('min_defect_area_px', '25.0')|int }} px</span>
+          </div>
+          <p class="setting-desc">Minimum contour pixel area required to classify a detected flaw as a real defect. Filters out harmless camera sensor pixel noise and dust specks.</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">5 px</span>
+            <input type="range" name="min_defect_area_px" id="slider_min_defect_area_px"
+                   min="5" max="500" step="5"
+                   value="{{ settings.get('min_defect_area_px', '25.0')|int }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_min_defect_area_px').innerText = parseInt(this.value) + ' px';" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">500 px</span>
+          </div>
+        </div>
+
+        <!-- 3. Severity Minor Cutoff -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Minor Severity Cutoff</span>
+            <span id="badge_severity_minor_cutoff" class="setting-val-badge">{{ settings.get('severity_minor_cutoff', '30.0') }}</span>
+          </div>
+          <p class="setting-desc">Composite severity score boundary (0–100) below which flaws are designated as Minor (e.g. light discoloration or shallow cosmetic stains).</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">10.0</span>
+            <input type="range" name="severity_minor_cutoff" id="slider_severity_minor_cutoff"
+                   min="10.0" max="50.0" step="1.0"
+                   value="{{ settings.get('severity_minor_cutoff', '30.0') }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_severity_minor_cutoff').innerText = parseFloat(this.value).toFixed(1);" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">50.0</span>
+          </div>
+        </div>
+
+        <!-- 4. Severity Major / Critical Cutoff -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Critical Severity Cutoff</span>
+            <span id="badge_severity_major_cutoff" class="setting-val-badge">{{ settings.get('severity_major_cutoff', '70.0') }}</span>
+          </div>
+          <p class="setting-desc">Composite severity score boundary above which flaws are designated as Critical failures requiring immediate line supervisor intervention and part quarantine.</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">50.0</span>
+            <input type="range" name="severity_major_cutoff" id="slider_severity_major_cutoff"
+                   min="50.0" max="90.0" step="1.0"
+                   value="{{ settings.get('severity_major_cutoff', '70.0') }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_severity_major_cutoff').innerText = parseFloat(this.value).toFixed(1);" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">90.0</span>
+          </div>
+        </div>
+
+        <!-- 5. In-App Notification Engine -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">In-App Alert Threshold</span>
+            <span id="badge_alert_severity_threshold" class="setting-val-badge">{{ settings.get('alert_severity_threshold', '70.0') }}</span>
+          </div>
+          <p class="setting-desc">Minimum severity score triggering an instant in-app notification bell alert for factory managers. Default 70.0 flags all Critical defects.</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">30.0</span>
+            <input type="range" name="alert_severity_threshold" id="slider_alert_severity_threshold"
+                   min="30.0" max="100.0" step="1.0"
+                   value="{{ settings.get('alert_severity_threshold', '70.0') }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_alert_severity_threshold').innerText = parseFloat(this.value).toFixed(1);" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">100.0</span>
+          </div>
+        </div>
+
+        <!-- 6. Line Spike Alert Window & Percentage -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Line Yield Spike Alert Rate</span>
+            <span id="badge_alert_rate_threshold_pct" class="setting-val-badge">{{ settings.get('alert_rate_threshold_pct', '30.0') }}%</span>
+          </div>
+          <p class="setting-desc">Flags a warning alert if the defect rejection rate over the last {{ settings.get('alert_rate_window_n', '20') }} inspections exceeds this percentage.</p>
+          <div class="slider-row">
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">5%</span>
+            <input type="range" name="alert_rate_threshold_pct" id="slider_alert_rate_threshold_pct"
+                   min="5.0" max="80.0" step="5.0"
+                   value="{{ settings.get('alert_rate_threshold_pct', '30.0') }}"
+                   class="slider-input"
+                   oninput="document.getElementById('badge_alert_rate_threshold_pct').innerText = parseFloat(this.value).toFixed(0) + '%';" />
+            <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">80%</span>
+          </div>
+        </div>
+
+        <!-- 7. Multimodal AI Provider Selection -->
+        <div class="setting-card">
+          <div class="setting-header">
+            <span class="setting-name">Multimodal AI Vision Engine</span>
+            <span class="setting-val-badge">{{ settings.get('ai_scan_provider', 'gemini')|upper }}</span>
+          </div>
+          <p class="setting-desc">Primary cloud multimodal AI provider used for secondary cross-validation in AI Scan Mode (Prompt 18).</p>
+          <select name="ai_scan_provider" class="camera-select" style="width: 100%; padding: 8px 12px; background: var(--bg-input); color: #fff; border: 1px solid var(--border-color); border-radius: 6px;">
+            <option value="gemini" {% if settings.get('ai_scan_provider') == 'gemini' %}selected{% endif %}>Google Gemini 1.5 Flash (Recommended)</option>
+            <option value="openai" {% if settings.get('ai_scan_provider') == 'openai' %}selected{% endif %}>OpenAI GPT-4o-mini Vision</option>
+            <option value="claude" {% if settings.get('ai_scan_provider') == 'claude' %}selected{% endif %}>Anthropic Claude 3.5 Sonnet</option>
+          </select>
+        </div>
+
+        <!-- 8. Alerts Master Enable Toggle -->
+        <div class="setting-card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div class="setting-header">
+              <span class="setting-name">Notification System Status</span>
+              <span class="setting-val-badge">{% if settings.get('alerts_enabled', '1') == '1' %}ACTIVE{% else %}PAUSED{% endif %}</span>
+            </div>
+            <p class="setting-desc">Master switch controlling in-app notification creation and navbar bell alerts across all inspection stations.</p>
+          </div>
+          <div style="display: flex; gap: 16px; align-items: center; margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="alerts_enabled" value="1" {% if settings.get('alerts_enabled', '1') == '1' %}checked{% endif %} />
+              <span style="font-size: 13px; color: #10b981; font-weight: 600;">Alerts Enabled</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="alerts_enabled" value="0" {% if settings.get('alerts_enabled', '1') == '0' %}checked{% endif %} />
+              <span style="font-size: 13px; color: #f87171;">Mute All Alerts</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Save Button -->
+      <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+        <a href="/dashboard" class="btn btn-secondary" style="text-decoration: none; padding: 10px 20px;">Cancel</a>
+        <button type="submit" class="btn btn-primary" style="padding: 10px 24px; font-weight: 600; font-size: 13px;">
+          💾 Save & Activate Thresholds
+        </button>
+      </div>
+    </form>
+
+    <!-- Audit Trail of Settings Changes -->
+    <div class="card" style="margin-top: 36px; padding: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="font-size: 16px; font-weight: 600; color: #fff;">
+          <span>📜</span> Parameter Audit Trail (Recent Changes)
+        </h3>
+        <span style="font-size: 12px; color: var(--text-muted);">Showing last {{ history|length }} audits</span>
+      </div>
+
+      {% if history %}
+      <div style="overflow-x: auto;">
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Timestamp (UTC)</th>
+              <th>Setting Key</th>
+              <th>Previous Value</th>
+              <th>New Value</th>
+              <th>Modified By</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in history %}
+            <tr>
+              <td style="font-family: var(--font-mono); color: var(--text-muted);">{{ h.changed_at }}</td>
+              <td><strong style="color: var(--accent-cyan); font-family: var(--font-mono);">{{ h.setting_key }}</strong></td>
+              <td style="font-family: var(--font-mono); color: #f87171;">{{ h.old_value }}</td>
+              <td style="font-family: var(--font-mono); color: #34d399; font-weight: 700;">{{ h.new_value }}</td>
+              <td><span class="role-pill role-admin" style="font-size: 10px;">{{ h.changed_by }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">
+        No threshold adjustments have been recorded yet. Any slider adjustment will be permanently logged here with timestamp and user attribution.
+      </div>
+      {% endif %}
+    </div>
+  </main>
+
+  <script>
+    function applyPreset(type) {
+      if (type === 'strict') {
+        // High sensitivity to catch all defects
+        document.getElementById('slider_anomaly_threshold').value = 0.020;
+        document.getElementById('badge_anomaly_threshold').innerText = '0.020';
+        document.getElementById('slider_min_defect_area_px').value = 15;
+        document.getElementById('badge_min_defect_area_px').innerText = '15 px';
+        document.getElementById('slider_severity_minor_cutoff').value = 25.0;
+        document.getElementById('badge_severity_minor_cutoff').innerText = '25.0';
+        document.getElementById('slider_severity_major_cutoff').value = 60.0;
+        document.getElementById('badge_severity_major_cutoff').innerText = '60.0';
+      } else if (type === 'standard') {
+        // Standard balanced calibration
+        document.getElementById('slider_anomaly_threshold').value = 0.035;
+        document.getElementById('badge_anomaly_threshold').innerText = '0.035';
+        document.getElementById('slider_min_defect_area_px').value = 25;
+        document.getElementById('badge_min_defect_area_px').innerText = '25 px';
+        document.getElementById('slider_severity_minor_cutoff').value = 30.0;
+        document.getElementById('badge_severity_minor_cutoff').innerText = '30.0';
+        document.getElementById('slider_severity_major_cutoff').value = 70.0;
+        document.getElementById('badge_severity_major_cutoff').innerText = '70.0';
+      } else if (type === 'tolerant') {
+        // Tolerant for high-yield lines
+        document.getElementById('slider_anomaly_threshold').value = 0.055;
+        document.getElementById('badge_anomaly_threshold').innerText = '0.055';
+        document.getElementById('slider_min_defect_area_px').value = 45;
+        document.getElementById('badge_min_defect_area_px').innerText = '45 px';
+        document.getElementById('slider_severity_minor_cutoff').value = 35.0;
+        document.getElementById('badge_severity_minor_cutoff').innerText = '35.0';
+        document.getElementById('slider_severity_major_cutoff').value = 75.0;
+        document.getElementById('badge_severity_major_cutoff').innerText = '75.0';
+      }
+    }
+  </script>
+</body>
+</html>
