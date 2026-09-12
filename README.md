@@ -149,3 +149,4 @@ Key production variables in `.env`:
 - `DATABASE_URL`: Set your managed PostgreSQL connection string
 - `GEMINI_API_KEY`: Set for Multimodal AI Vision Scan mode (Prompt 18)
 - `ALLOWED_ORIGINS`: Restrict CORS domains to your enterprise gateway
+
