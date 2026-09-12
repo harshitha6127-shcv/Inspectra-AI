@@ -1,9 +1,7 @@
 # Vision-Based Defect Detection for Manufacturing Quality Inspection
 
 A complete, production-grade industrial visual inspection system built with **Python**, **OpenCV**, **PyTorch**, and **scikit-learn**. The system detects defective versus normal parts, classifies the defect category, localizes the defective region using Grad-CAM and contour geometry, and performs multi-layer false-positive filtering.
-
 ---
-
 ## 🏭 Defect Categories Covered
 1. **Normal** (Defect-free baseline product)
 2. **Crack** (Jagged, branching micro-fractures)
