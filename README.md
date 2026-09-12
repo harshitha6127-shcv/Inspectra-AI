@@ -116,7 +116,9 @@ python main.py inspect --image path/to/part_image.png --sample_id PART_SERIAL_40
 - **Test-Time Augmentation (TTA)**: 3-view voting (Original, Horizontal Flip, Rotated 10°) ensures defect persistence.
 - **Borderline Quarantine Log**: Borderline or conflicted cases are quarantined into `outputs/borderline_review_queue.json` for human QA operator audit.
 
+
 ---
+
 
 ## 🐳 Production Containerization & Docker Compose (Prompt 16)
 
